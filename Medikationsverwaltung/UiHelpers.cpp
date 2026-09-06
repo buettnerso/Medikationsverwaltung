@@ -124,7 +124,7 @@ namespace med::ui
         StackPanel panel;
         panel.Spacing(5);
         panel.MinWidth(170);
-        panel.Children().Append(Text(label, 12.0, true));
+        panel.Children().Append(Text(label, 13.0, true));
         panel.Children().Append(control);
         return panel;
     }

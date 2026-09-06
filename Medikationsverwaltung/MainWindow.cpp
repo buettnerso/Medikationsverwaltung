@@ -1,15 +1,3 @@
-// ============================================================================
-// Datei: MainWindow.cpp
-// Zweck: Implementiert die komplette programmgesteuert erzeugte WinUI-Oberfläche der Medikationsverwaltung.
-//
-// Verantwortlichkeiten:
-// - Erzeugt globale Übersicht, Studienreiter, Tabellen, Eingabemasken und Einstellungen.
-// - Bewahrt Filter-, Sortier-, Auswahl- und Scrollzustände der Tabellen.
-// - Delegiert fachliche Berechnungen und Persistenz an die dafür vorgesehenen Klassen.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "pch.h"
 #include "MainWindow.h"
 #include "resource.h"
@@ -20,6 +8,7 @@
 #include "UiHelpers.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <cwchar>
 #include <cwctype>
@@ -32,11 +21,6 @@ using namespace winrt::Microsoft::UI::Xaml::Media;
 
 namespace
 {
-    // -------------------------------------------------------------------------
-    // Lokale UI-/Text-Hilfsfunktionen
-    // -------------------------------------------------------------------------
-    // Diese Helfer werden nur in MainWindow.cpp benötigt und bleiben deshalb im
-    // anonymen Namespace statt Bestandteil der öffentlichen UI-Hilfsklasse zu sein.
     Button MakeButton(const std::wstring& text)
     {
         Button button;
@@ -53,6 +37,150 @@ namespace
         button.Background(med::ui::Brush(45, 93, 140));
         button.Foreground(med::ui::Brush(255, 255, 255));
         return button;
+    }
+
+
+    // Ordnet drei Arbeitskarten abhängig von der tatsächlich verfügbaren Breite an.
+    // Große Fenster: 3 Spalten. Mittlere Fenster: 2 Spalten. Kleine Fenster: 1 Spalte.
+    // Die Steuerelemente selbst werden dabei NICHT skaliert; nur ihre Anordnung ändert sich.
+    Grid MakeResponsiveThreeCardGrid(
+        const FrameworkElement& first,
+        const FrameworkElement& second,
+        const FrameworkElement& third)
+    {
+        Grid grid;
+        grid.HorizontalAlignment(HorizontalAlignment::Stretch);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            ColumnDefinition column;
+            column.Width(GridLength{ 1, GridUnitType::Star });
+            grid.ColumnDefinitions().Append(column);
+
+            RowDefinition row;
+            row.Height(GridLength{ 0, GridUnitType::Auto });
+            grid.RowDefinitions().Append(row);
+        }
+
+        grid.Children().Append(first);
+        grid.Children().Append(second);
+        grid.Children().Append(third);
+
+        auto arrange = [grid, first, second, third](double width)
+        {
+            // Die Schwellen beziehen sich auf den Inhaltsbereich nach Navigation und Seitenrändern.
+            // Dadurch bleibt z. B. auf einem kleineren Notebook ausreichend Platz pro Formular.
+            if (width >= 1220.0)
+            {
+                for (unsigned int c = 0; c < 3; ++c)
+                    grid.ColumnDefinitions().GetAt(c).Width(GridLength{ 1, GridUnitType::Star });
+
+                Grid::SetRow(first, 0);  Grid::SetColumn(first, 0);  Grid::SetColumnSpan(first, 1);
+                Grid::SetRow(second, 0); Grid::SetColumn(second, 1); Grid::SetColumnSpan(second, 1);
+                Grid::SetRow(third, 0);  Grid::SetColumn(third, 2);  Grid::SetColumnSpan(third, 1);
+
+                first.Margin(Thickness{ 0,0,6,0 });
+                second.Margin(Thickness{ 6,0,6,0 });
+                third.Margin(Thickness{ 6,0,0,0 });
+            }
+            else if (width >= 760.0)
+            {
+                grid.ColumnDefinitions().GetAt(0).Width(GridLength{ 1, GridUnitType::Star });
+                grid.ColumnDefinitions().GetAt(1).Width(GridLength{ 1, GridUnitType::Star });
+                grid.ColumnDefinitions().GetAt(2).Width(GridLength{ 0, GridUnitType::Pixel });
+
+                Grid::SetRow(first, 0);  Grid::SetColumn(first, 0);  Grid::SetColumnSpan(first, 1);
+                Grid::SetRow(second, 0); Grid::SetColumn(second, 1); Grid::SetColumnSpan(second, 1);
+                Grid::SetRow(third, 1);  Grid::SetColumn(third, 0);  Grid::SetColumnSpan(third, 2);
+
+                first.Margin(Thickness{ 0,0,6,6 });
+                second.Margin(Thickness{ 6,0,0,6 });
+                third.Margin(Thickness{ 0,6,0,0 });
+            }
+            else
+            {
+                grid.ColumnDefinitions().GetAt(0).Width(GridLength{ 1, GridUnitType::Star });
+                grid.ColumnDefinitions().GetAt(1).Width(GridLength{ 0, GridUnitType::Pixel });
+                grid.ColumnDefinitions().GetAt(2).Width(GridLength{ 0, GridUnitType::Pixel });
+
+                Grid::SetRow(first, 0);  Grid::SetColumn(first, 0);  Grid::SetColumnSpan(first, 1);
+                Grid::SetRow(second, 1); Grid::SetColumn(second, 0); Grid::SetColumnSpan(second, 1);
+                Grid::SetRow(third, 2);  Grid::SetColumn(third, 0);  Grid::SetColumnSpan(third, 1);
+
+                first.Margin(Thickness{ 0,0,0,8 });
+                second.Margin(Thickness{ 0,8,0,8 });
+                third.Margin(Thickness{ 0,8,0,0 });
+            }
+        };
+
+        grid.Loaded([grid, arrange](auto const&, auto const&)
+        {
+            arrange(grid.ActualWidth());
+        });
+        grid.SizeChanged([arrange](auto const&, SizeChangedEventArgs const& args)
+        {
+            arrange(static_cast<double>(args.NewSize().Width));
+        });
+
+        return grid;
+    }
+
+    // Entsprechende responsive Anordnung für zwei Karten.
+    Grid MakeResponsiveTwoCardGrid(
+        const FrameworkElement& first,
+        const FrameworkElement& second)
+    {
+        Grid grid;
+        grid.HorizontalAlignment(HorizontalAlignment::Stretch);
+
+        for (int i = 0; i < 2; ++i)
+        {
+            ColumnDefinition column;
+            column.Width(GridLength{ 1, GridUnitType::Star });
+            grid.ColumnDefinitions().Append(column);
+
+            RowDefinition row;
+            row.Height(GridLength{ 0, GridUnitType::Auto });
+            grid.RowDefinitions().Append(row);
+        }
+
+        grid.Children().Append(first);
+        grid.Children().Append(second);
+
+        auto arrange = [grid, first, second](double width)
+        {
+            if (width >= 760.0)
+            {
+                grid.ColumnDefinitions().GetAt(0).Width(GridLength{ 1, GridUnitType::Star });
+                grid.ColumnDefinitions().GetAt(1).Width(GridLength{ 1, GridUnitType::Star });
+
+                Grid::SetRow(first, 0); Grid::SetColumn(first, 0);
+                Grid::SetRow(second, 0); Grid::SetColumn(second, 1);
+                first.Margin(Thickness{ 0,0,6,0 });
+                second.Margin(Thickness{ 6,0,0,0 });
+            }
+            else
+            {
+                grid.ColumnDefinitions().GetAt(0).Width(GridLength{ 1, GridUnitType::Star });
+                grid.ColumnDefinitions().GetAt(1).Width(GridLength{ 0, GridUnitType::Pixel });
+
+                Grid::SetRow(first, 0); Grid::SetColumn(first, 0);
+                Grid::SetRow(second, 1); Grid::SetColumn(second, 0);
+                first.Margin(Thickness{ 0,0,0,8 });
+                second.Margin(Thickness{ 0,8,0,0 });
+            }
+        };
+
+        grid.Loaded([grid, arrange](auto const&, auto const&)
+        {
+            arrange(grid.ActualWidth());
+        });
+        grid.SizeChanged([arrange](auto const&, SizeChangedEventArgs const& args)
+        {
+            arrange(static_cast<double>(args.NewSize().Width));
+        });
+
+        return grid;
     }
 
     std::vector<std::wstring> SplitNonEmptyLines(const std::wstring& value)
@@ -155,9 +283,6 @@ namespace
 
 namespace med
 {
-    // =========================================================================
-    // Fensterinitialisierung
-    // =========================================================================
     MainWindow::MainWindow()
     {
         m_settings = AppSettings::Load();
@@ -166,7 +291,55 @@ namespace med
 
         auto native = m_window.as<::IWindowNative>();
         winrt::check_hresult(native->get_WindowHandle(&m_hwnd));
-        ::SetWindowPos(m_hwnd, nullptr, 0, 0, 1500, 900, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+        // Kompakte, monitorabhängige Startgröße:
+        // Ziel ist ungefähr das Seitenverhältnis eines A5-Blatts im Querformat,
+        // ohne das Fenster auf kleineren Notebooks über den verfügbaren Arbeitsbereich
+        // hinaus zu vergrößern. Schriftgrößen und Steuerelemente werden dabei nicht skaliert.
+        constexpr double desiredWidthDip = 980.0;
+        constexpr double desiredHeightDip = 680.0;
+
+        const UINT dpi = std::max<UINT>(96, ::GetDpiForWindow(m_hwnd));
+        const double dpiScale = static_cast<double>(dpi) / 96.0;
+
+        int desiredWidth = static_cast<int>(std::lround(desiredWidthDip * dpiScale));
+        int desiredHeight = static_cast<int>(std::lround(desiredHeightDip * dpiScale));
+
+        HMONITOR monitor = ::MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo{ sizeof(MONITORINFO) };
+        if (::GetMonitorInfoW(monitor, &monitorInfo))
+        {
+            const int workWidth = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
+            const int workHeight = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
+
+            // Auf kleinen Displays maximal rund 90 % des nutzbaren Desktopbereichs belegen.
+            // Das Fenster darf anschließend vom Benutzer beliebig vergrößert/maximiert werden.
+            desiredWidth = std::min(desiredWidth, static_cast<int>(workWidth * 0.90));
+            desiredHeight = std::min(desiredHeight, static_cast<int>(workHeight * 0.90));
+
+            const int x = monitorInfo.rcWork.left + (workWidth - desiredWidth) / 2;
+            const int y = monitorInfo.rcWork.top + (workHeight - desiredHeight) / 2;
+
+            ::SetWindowPos(
+                m_hwnd,
+                nullptr,
+                x,
+                y,
+                desiredWidth,
+                desiredHeight,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        else
+        {
+            ::SetWindowPos(
+                m_hwnd,
+                nullptr,
+                0,
+                0,
+                desiredWidth,
+                desiredHeight,
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
 
         // App-Icon direkt aus den EXE-Ressourcen laden. Das ist für die
         // unpackaged WinUI-3-Anwendung robuster als ein Laufzeit-Dateipfad.
@@ -205,20 +378,22 @@ namespace med
         m_window.Activate();
     }
 
-    // =========================================================================
-    // Hauptnavigation
-    // =========================================================================
-    // Die linke Navigation enthält globale Bereiche. Studienbezogene Arbeitsreiter
-    // werden nach Auswahl einer Studie innerhalb des Inhaltsbereichs erzeugt.
     void MainWindow::BuildNavigation()
     {
         m_navigation = NavigationView();
         m_navigation.PaneTitle(L"Medikationsverwaltung");
         m_navigation.IsBackButtonVisible(NavigationViewBackButtonVisible::Collapsed);
         m_navigation.IsSettingsVisible(false);
-        m_navigation.PaneDisplayMode(NavigationViewPaneDisplayMode::Left);
+        // Die Navigation reagiert auf die Fensterbreite:
+        // - groß: vollständig aufgeklappt,
+        // - mittel: kompakte Symbolleiste,
+        // - klein: Overlay/Hamburger-Menü.
+        // Dadurch verliert der eigentliche Arbeitsbereich auf kleinen Displays nicht 220 px.
+        m_navigation.PaneDisplayMode(NavigationViewPaneDisplayMode::Auto);
         m_navigation.OpenPaneLength(220);
         m_navigation.CompactPaneLength(52);
+        m_navigation.CompactModeThresholdWidth(900);
+        m_navigation.ExpandedModeThresholdWidth(1250);
 
         auto add = [&](const std::wstring& title, const std::wstring& tag)
         {
@@ -247,11 +422,6 @@ namespace med
         m_window.Content(m_navigation);
     }
 
-    // =========================================================================
-    // Studien laden und Auswahl erhalten
-    // =========================================================================
-    // Das Repository liest den konfigurierten Studienordner. Separate Reload-Methoden
-    // sorgen dafür, dass Auswahl und aktuelle Ansicht nach Änderungen möglichst stabil bleiben.
     void MainWindow::LoadStudies()
     {
         try
@@ -334,9 +504,6 @@ namespace med
         }
     }
 
-    // =========================================================================
-    // Aktuelle Auswahl, Pfade und Dateidialoge
-    // =========================================================================
     const StudyData* MainWindow::CurrentStudy() const
     {
         return m_selectedStudy < m_studies.size() ? &m_studies[m_selectedStudy] : nullptr;
@@ -423,11 +590,6 @@ namespace med
         }
     }
 
-    // =========================================================================
-    // Globale Seitenumschaltung
-    // =========================================================================
-    // RenderSection ist der zentrale Router der NavigationView und setzt den Inhalt
-    // abhängig vom gespeicherten Abschnitts-Tag neu zusammen.
     void MainWindow::RenderSection(const std::wstring& tag)
     {
         m_currentSection = tag;
@@ -438,9 +600,6 @@ namespace med
         else RenderOverview();
     }
 
-    // =========================================================================
-    // Wiederverwendbare Kopfzeile und Tabellen-Infrastruktur
-    // =========================================================================
     FrameworkElement MainWindow::BuildTopBar(const std::wstring& title, const std::wstring& subtitle)
     {
         StackPanel labels;
@@ -489,9 +648,6 @@ namespace med
         RenderSection(m_currentSection);
     }
 
-    /// Einheitliche Tabellenimplementierung des Programms.
-    /// Ablauf: Filter anwenden -> optional sortieren -> Header und Daten erzeugen ->
-    /// Scroll-/Auswahlzustand sichern -> gemeinsame Spaltenbreiten synchronisieren.
     FrameworkElement MainWindow::BuildInteractiveTable(
         const std::wstring& key,
         const std::vector<std::wstring>& headers,
@@ -508,6 +664,19 @@ namespace med
             outer.Children().Append(ui::Text(L"Keine Tabellenspalten erkannt.", 12, false));
             return outer;
         }
+
+        // Einheitlicher "Card-Table"-Stil:
+        // - ein gemeinsamer abgerundeter Außenrahmen,
+        // - ruhiger Tabellenkopf,
+        // - sehr dezente Gitternetzlinien,
+        // - alternierende Zeilenhintergründe für bessere Lesbarkeit.
+        const auto tableBorderBrush = ui::Brush(214, 220, 229);
+        const auto gridLineBrush = ui::Brush(232, 236, 242);
+        const auto headerBackground = ui::Brush(246, 248, 251);
+        const auto alternateRowBackground = ui::Brush(250, 251, 253);
+        const auto selectedRowBackground = ui::Brush(238, 245, 255);
+        const auto transparentBrush =
+            SolidColorBrush(winrt::Windows::UI::Color{ 0, 0, 0, 0 });
 
         auto& state = m_tableStates[key];
         std::vector<size_t> visible;
@@ -582,13 +751,14 @@ namespace med
         if (selectable)
         {
             Border selectHeader;
-            selectHeader.Background(ui::Brush(244, 247, 251));
-            selectHeader.BorderBrush(ui::Brush(224, 229, 236));
-            selectHeader.BorderThickness(Thickness{ 1,1,1,1 });
+            selectHeader.BorderBrush(gridLineBrush);
+            selectHeader.BorderThickness(Thickness{ 0,0,1,0 });
             selectHeader.Padding(Thickness{ 1,0,1,0 });
+
             auto tick = ui::Text(L"✓", 11, true);
             tick.HorizontalAlignment(HorizontalAlignment::Center);
             tick.VerticalAlignment(VerticalAlignment::Center);
+
             selectHeader.Child(tick);
             Grid::SetColumn(selectHeader, 0);
             headerGrid.Children().Append(selectHeader);
@@ -597,10 +767,13 @@ namespace med
         for (size_t c = 0; c < headers.size(); ++c)
         {
             Border cell;
-            cell.Background(ui::Brush(244, 247, 251));
-            cell.BorderBrush(ui::Brush(224, 229, 236));
-            cell.BorderThickness(Thickness{ selectable || c > 0 ? 0.0 : 1.0,1.0,1.0,1.0 });
-            cell.Padding(Thickness{ 1,0,1,0 });
+            cell.BorderBrush(gridLineBrush);
+            cell.BorderThickness(Thickness{
+                0.0,
+                0.0,
+                (c + 1 < headers.size()) ? 1.0 : 0.0,
+                0.0 });
+            cell.Padding(Thickness{ 0,0,0,0 });
 
             std::wstring title = headers[c].empty() ? L"Spalte " + std::to_wstring(c + 1) : headers[c];
             if (state.filters.contains(c) && !date::Trim(state.filters[c]).empty()) title += L"  ●";
@@ -611,8 +784,11 @@ namespace med
             button.Content(box_value(title));
             button.HorizontalAlignment(HorizontalAlignment::Stretch);
             button.HorizontalContentAlignment(HorizontalAlignment::Left);
-            button.Padding(Thickness{ 4,0,4,0 });
-            button.MinHeight(23);
+            button.Padding(Thickness{ 8,2,8,2 });
+            button.MinHeight(27);
+            button.Background(transparentBrush);
+            button.BorderThickness(Thickness{ 0,0,0,0 });
+            button.CornerRadius(CornerRadius{ 0,0,0,0 });
 
             Flyout flyout;
             StackPanel menu;
@@ -691,13 +867,20 @@ namespace med
             const int rowKey = rowIndex < rowKeys.size() ? rowKeys[rowIndex] : static_cast<int>(rowIndex);
             const bool selected = selectable && state.selectedKey == rowKey;
 
+            const bool alternateRow = (gridRow % 2) != 0;
+
             if (selectable)
             {
                 Border selectCell;
-                selectCell.BorderBrush(ui::Brush(224, 229, 236));
-                selectCell.BorderThickness(Thickness{ 1,0,1,1 });
+                selectCell.BorderBrush(gridLineBrush);
+                selectCell.BorderThickness(Thickness{ 0,0,1,1 });
                 selectCell.Padding(Thickness{ 0,0,0,0 });
-                if (selected) selectCell.Background(ui::Brush(230, 240, 255));
+
+                if (selected)
+                    selectCell.Background(selectedRowBackground);
+                else if (alternateRow)
+                    selectCell.Background(alternateRowBackground);
+
                 CheckBox check;
                 check.IsChecked(selected);
                 check.HorizontalAlignment(HorizontalAlignment::Center);
@@ -718,11 +901,20 @@ namespace med
             for (size_t c = 0; c < headers.size(); ++c)
             {
                 Border cell;
-                cell.BorderBrush(ui::Brush(224, 229, 236));
-                cell.BorderThickness(Thickness{ selectable || c > 0 ? 0.0 : 1.0,0.0,1.0,1.0 });
-                cell.Padding(Thickness{ 5,1,5,1 });
-                if (selected) cell.Background(ui::Brush(238, 245, 255));
-                auto text = ui::Text(c < rows[rowIndex].size() ? rows[rowIndex][c] : L"", 12.0, false);
+                cell.BorderBrush(gridLineBrush);
+                cell.BorderThickness(Thickness{
+                    0.0,
+                    0.0,
+                    (c + 1 < headers.size()) ? 1.0 : 0.0,
+                    1.0 });
+                cell.Padding(Thickness{ 8,3,8,3 });
+
+                if (selected)
+                    cell.Background(selectedRowBackground);
+                else if (alternateRow)
+                    cell.Background(alternateRowBackground);
+
+                auto text = ui::Text(c < rows[rowIndex].size() ? rows[rowIndex][c] : L"", 13.0, false);
                 text.VerticalAlignment(VerticalAlignment::Center);
                 text.TextWrapping(TextWrapping::NoWrap);
                 cell.Child(text);
@@ -758,18 +950,37 @@ namespace med
             bodyScroll.ChangeView(nullptr, vertical, nullptr, true);
         });
 
+        // Kopf- und Datenbereich bilden optisch eine gemeinsame Karte.
+        // Die äußeren Ecken werden nur am oberen bzw. unteren Rand gerundet;
+        // die inneren Zelllinien bleiben bewusst gerade.
+        Border headerSurface;
+        headerSurface.Background(headerBackground);
+        headerSurface.BorderBrush(tableBorderBrush);
+        headerSurface.BorderThickness(Thickness{ 1,1,1,1 });
+        headerSurface.CornerRadius(CornerRadius{ 9,9,0,0 });
+        headerSurface.Child(headerGrid);
+
+        Border bodySurface;
+        bodySurface.Background(ui::Brush(255, 255, 255));
+        bodySurface.BorderBrush(tableBorderBrush);
+        bodySurface.BorderThickness(Thickness{ 1,0,1,1 });
+        bodySurface.CornerRadius(CornerRadius{ 0,0,9,9 });
+        bodySurface.Child(bodyScroll);
+
         Grid tableStack;
         tableStack.HorizontalAlignment(HorizontalAlignment::Stretch);
+
         RowDefinition tableHeaderRow;
         tableHeaderRow.Height(GridLength{ 0, GridUnitType::Auto });
         RowDefinition tableBodyRow;
         tableBodyRow.Height(GridLength{ 0, GridUnitType::Auto });
         tableStack.RowDefinitions().Append(tableHeaderRow);
         tableStack.RowDefinitions().Append(tableBodyRow);
-        Grid::SetRow(headerGrid, 0);
-        Grid::SetRow(bodyScroll, 1);
-        tableStack.Children().Append(headerGrid);
-        tableStack.Children().Append(bodyScroll);
+
+        Grid::SetRow(headerSurface, 0);
+        Grid::SetRow(bodySurface, 1);
+        tableStack.Children().Append(headerSurface);
+        tableStack.Children().Append(bodySurface);
 
         // Hinweise stehen außerhalb der intern scrollenden Datenfläche.
         StackPanel result;
@@ -817,7 +1028,7 @@ namespace med
         // Kopf und Datenkörper erhalten bei jeder Fensterbreite EXAKT die gleichen
         // Pixelbreiten. Die Tabelle füllt dabei weiterhin die verfügbare Breite aus.
         horizontalScroll.SizeChanged(
-            [headerGrid, bodyGrid, tableStack, bodyScroll, result, headers, selectable]
+            [headerGrid, bodyGrid, headerSurface, bodySurface, tableStack, bodyScroll, result, headers, selectable]
             (auto const&, SizeChangedEventArgs const& args)
             {
                 const double viewport = std::max(320.0, static_cast<double>(args.NewSize().Width));
@@ -874,9 +1085,13 @@ namespace med
                 const double exactGridWidth = selectorWidth + dataTotal;
                 headerGrid.Width(exactGridWidth);
                 bodyGrid.Width(exactGridWidth);
-                bodyScroll.Width(exactGridWidth + scrollbarGutter);
-                tableStack.Width(exactGridWidth + scrollbarGutter);
-                result.Width(exactGridWidth + scrollbarGutter);
+
+                const double tableWidth = exactGridWidth + scrollbarGutter;
+                headerSurface.Width(tableWidth);
+                bodySurface.Width(tableWidth);
+                bodyScroll.Width(tableWidth);
+                tableStack.Width(tableWidth);
+                result.Width(tableWidth);
             });
 
         return horizontalScroll;
@@ -961,16 +1176,39 @@ namespace med
                 std::to_wstring(imp.leadTimeDays) + L" T", PlanWindow(imp.plan), OrderPlanner::StateText(imp.plan.state) });
         }
         if (rows.empty()) rows.push_back({ L"–", L"–", L"Keine bestellpflichtigen IMPs", L"–", L"–", L"–", L"–", L"–", L"–" });
-        page.Children().Append(ui::Card(BuildInteractiveTable(L"global|overview", headers, rows, {}, 100, false), 0));
+        page.Children().Append(BuildInteractiveTable(L"global|overview", headers, rows, {}, 100, false));
 
-        Grid selectorRow;
-        ColumnDefinition s1; s1.Width(GridLength{ 0, GridUnitType::Auto });
-        ColumnDefinition s2; s2.Width(GridLength{ 330, GridUnitType::Pixel });
-        ColumnDefinition s3; s3.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition s4; s4.Width(GridLength{ 0, GridUnitType::Auto });
-        selectorRow.ColumnDefinitions().Append(s1); selectorRow.ColumnDefinitions().Append(s2); selectorRow.ColumnDefinitions().Append(s3); selectorRow.ColumnDefinitions().Append(s4);
-        auto label = ui::Text(L"Studie auswählen:", 14, true); label.VerticalAlignment(VerticalAlignment::Center); label.Margin(Thickness{ 0,0,12,0 });
-        selectorRow.Children().Append(label);
+        // Studienauswahl und Aktionen dürfen auf kleinen Displays nicht gegeneinander
+        // drücken. Auf breiten Fenstern stehen die Aktionen rechts; auf schmaleren
+        // Fenstern wechseln sie automatisch in eine zweite Zeile.
+        Grid selectorArea;
+        selectorArea.HorizontalAlignment(HorizontalAlignment::Stretch);
+
+        ColumnDefinition selectorMainColumn;
+        selectorMainColumn.Width(GridLength{ 1, GridUnitType::Star });
+        ColumnDefinition selectorActionColumn;
+        selectorActionColumn.Width(GridLength{ 0, GridUnitType::Auto });
+        selectorArea.ColumnDefinitions().Append(selectorMainColumn);
+        selectorArea.ColumnDefinitions().Append(selectorActionColumn);
+
+        for (int i = 0; i < 2; ++i)
+        {
+            RowDefinition row;
+            row.Height(GridLength{ 0, GridUnitType::Auto });
+            selectorArea.RowDefinitions().Append(row);
+        }
+
+        StackPanel selectorInfo;
+        selectorInfo.Spacing(4);
+
+        StackPanel selectorLine;
+        selectorLine.Orientation(Orientation::Horizontal);
+        selectorLine.Spacing(10);
+
+        auto label = ui::Text(L"Studie auswählen:", 14, true);
+        label.VerticalAlignment(VerticalAlignment::Center);
+        selectorLine.Children().Append(label);
+
         m_studyCombo = ComboBox();
         for (const auto& study : m_studies)
         {
@@ -979,7 +1217,8 @@ namespace med
             m_studyCombo.Items().Append(box_value(display));
         }
         m_studyCombo.SelectedIndex(static_cast<int>(m_selectedStudy));
-        m_studyCombo.MinWidth(300);
+        m_studyCombo.MinWidth(240);
+        m_studyCombo.MaxWidth(420);
         m_studyCombo.SelectionChanged([this](auto&&, auto&&)
         {
             if (m_rendering || !m_studyCombo) return;
@@ -992,29 +1231,102 @@ namespace med
                 RenderOverview();
             }
         });
-        Grid::SetColumn(m_studyCombo, 1); selectorRow.Children().Append(m_studyCombo);
+        selectorLine.Children().Append(m_studyCombo);
+        selectorInfo.Children().Append(selectorLine);
 
         if (auto study = CurrentStudy())
         {
-            auto meta = ui::Text(L"IMPs: " + std::to_wstring(study->imps.size()) + L"   |   Datei: " + study->excelPath.filename().wstring(), 12, false);
-            meta.Foreground(ui::Brush(95, 107, 125)); meta.VerticalAlignment(VerticalAlignment::Center); meta.Margin(Thickness{ 14,0,10,0 });
-            Grid::SetColumn(meta, 2); selectorRow.Children().Append(meta);
+            auto meta = ui::Text(
+                L"IMPs: " + std::to_wstring(study->imps.size()) +
+                L"   |   Datei: " + study->excelPath.filename().wstring(),
+                12,
+                false);
+            meta.Foreground(ui::Brush(95, 107, 125));
+            meta.TextWrapping(TextWrapping::Wrap);
+            selectorInfo.Children().Append(meta);
+        }
 
-            StackPanel studyActions;
-            studyActions.Orientation(Orientation::Horizontal);
-            studyActions.Spacing(7);
+        Grid::SetRow(selectorInfo, 0);
+        Grid::SetColumn(selectorInfo, 0);
+        selectorArea.Children().Append(selectorInfo);
+
+        ScrollViewer actionScroll;
+        actionScroll.HorizontalScrollBarVisibility(ScrollBarVisibility::Auto);
+        actionScroll.VerticalScrollBarVisibility(ScrollBarVisibility::Disabled);
+        actionScroll.HorizontalAlignment(HorizontalAlignment::Stretch);
+
+        StackPanel studyActions;
+        studyActions.Orientation(Orientation::Horizontal);
+        studyActions.Spacing(7);
+
+        if (CurrentStudy())
+        {
             auto openExcel = MakeButton(L"Studien-Excel öffnen");
-            openExcel.Click([this](auto&&, auto&&) { if (auto s = CurrentStudy()) OpenPath(s->excelPath); });
+            openExcel.Click([this](auto&&, auto&&)
+            {
+                if (auto s = CurrentStudy()) OpenPath(s->excelPath);
+            });
+
             auto openDocs = MakeButton(L"Dokumentenordner öffnen");
-            openDocs.Click([this](auto&&, auto&&) { if (auto s = CurrentStudy()) { auto path = s->studyDirectory / L"Documents"; std::filesystem::create_directories(path); OpenPath(path); } });
+            openDocs.Click([this](auto&&, auto&&)
+            {
+                if (auto s = CurrentStudy())
+                {
+                    auto path = s->studyDirectory / L"Documents";
+                    std::filesystem::create_directories(path);
+                    OpenPath(path);
+                }
+            });
+
             auto reload = MakeButton(L"Daten neu einlesen");
             reload.Click([this](auto&&, auto&&) { ReloadKeepingSelection(); });
+
             studyActions.Children().Append(openExcel);
             studyActions.Children().Append(openDocs);
             studyActions.Children().Append(reload);
-            Grid::SetColumn(studyActions, 3); selectorRow.Children().Append(studyActions);
         }
-        page.Children().Append(selectorRow);
+
+        actionScroll.Content(studyActions);
+        Grid::SetRow(actionScroll, 0);
+        Grid::SetColumn(actionScroll, 1);
+        selectorArea.Children().Append(actionScroll);
+
+        auto arrangeSelector = [selectorArea, selectorInfo, actionScroll](double width)
+        {
+            if (width >= 1080.0)
+            {
+                Grid::SetRow(selectorInfo, 0);
+                Grid::SetColumn(selectorInfo, 0);
+                Grid::SetColumnSpan(selectorInfo, 1);
+
+                Grid::SetRow(actionScroll, 0);
+                Grid::SetColumn(actionScroll, 1);
+                Grid::SetColumnSpan(actionScroll, 1);
+                actionScroll.Margin(Thickness{ 14,0,0,0 });
+            }
+            else
+            {
+                Grid::SetRow(selectorInfo, 0);
+                Grid::SetColumn(selectorInfo, 0);
+                Grid::SetColumnSpan(selectorInfo, 2);
+
+                Grid::SetRow(actionScroll, 1);
+                Grid::SetColumn(actionScroll, 0);
+                Grid::SetColumnSpan(actionScroll, 2);
+                actionScroll.Margin(Thickness{ 0,8,0,0 });
+            }
+        };
+
+        selectorArea.Loaded([selectorArea, arrangeSelector](auto const&, auto const&)
+        {
+            arrangeSelector(selectorArea.ActualWidth());
+        });
+        selectorArea.SizeChanged([arrangeSelector](auto const&, SizeChangedEventArgs const& args)
+        {
+            arrangeSelector(static_cast<double>(args.NewSize().Width));
+        });
+
+        page.Children().Append(selectorArea);
 
         // Klare visuelle Trennung: oberhalb studienübergreifende Übersicht/Aktionen,
         // unterhalb ausschließlich Inhalte der aktuell ausgewählten Studie.
@@ -1059,10 +1371,6 @@ namespace med
         m_rendering = false;
     }
 
-    // =========================================================================
-    // Studienspezifischer Arbeitsbereich und Reiter
-    // =========================================================================
-    // Die ausgewählte Studie bleibt über alle folgenden Reiter dieselbe Datenquelle.
     FrameworkElement MainWindow::BuildStudyTabs()
     {
         TabView tabs;
@@ -1072,7 +1380,13 @@ namespace med
             auto add = [&](const std::wstring& header, const FrameworkElement& content)
             {
                 TabViewItem item;
-                item.Header(box_value(header));
+                
+                TextBlock headerText;
+                headerText.Text(header);
+                headerText.FontSize(13.0);
+
+                item.Header(headerText);
+
                 item.IsClosable(false);
                 item.Content(content);
                 tabs.TabItems().Append(item);
@@ -1219,11 +1533,6 @@ namespace med
         return panel;
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Übersicht
-    // -------------------------------------------------------------------------
-    // Zeigt abgeleitete Kennzahlen, nächste Visiten, Bestellstatus und Schnellzugriffe
-    // für die aktuell ausgewählte Studie.
     FrameworkElement MainWindow::BuildStudyOverview(const StudyData& study)
     {
         StackPanel panel;
@@ -1261,11 +1570,6 @@ namespace med
         impCard.Children().Append(BuildInteractiveTable(study.studyName + L"|studyOverviewImps", impHeaders, impRows, {}, 50, false));
         panel.Children().Append(ui::Card(impCard));
 
-        Grid cards;
-        ColumnDefinition c1; c1.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition c2; c2.Width(GridLength{ 1, GridUnitType::Star });
-        cards.ColumnDefinitions().Append(c1); cards.ColumnDefinitions().Append(c2);
-
         StackPanel upcoming;
         upcoming.Spacing(7);
         upcoming.Children().Append(ui::Text(L"Nächste geplante Visiten", 17, true));
@@ -1274,20 +1578,64 @@ namespace med
         int shown = 0;
         for (const auto& visit : sorted)
         {
-            if (!visit.hasDate || visit.date < date::Today()) continue;
-            std::wstring line = date::FormatGermanDate(visit.date) + L"  ·  " + visit.patientId;
-            for (const auto& [key, value] : visit.metadata) if (!value.empty()) line += L"  ·  " + key + L" " + value;
-            upcoming.Children().Append(ui::Text(line, 12, false));
-            if (++shown >= 8) break;
+            if (!visit.hasDate || visit.date < date::Today())
+                continue;
+
+            // In der Übersicht werden bewusst nur die fachlich wichtigsten Angaben
+            // gezeigt: Datum, Patient, Visitenbezeichnung und Visitenzusatz.
+            auto getMetadataValue =
+                [&visit](std::initializer_list<std::wstring> aliases) -> std::wstring
+            {
+                for (const auto& [metadataKey, value] : visit.metadata)
+                {
+                    const auto normalizedKey = date::Normalize(metadataKey);
+
+                    for (const auto& alias : aliases)
+                    {
+                        if (normalizedKey == date::Normalize(alias))
+                            return date::Trim(value);
+                    }
+                }
+                return L"";
+            };
+
+            const std::wstring visitName =
+                getMetadataValue({
+                    L"Visiten-Bezeichnung",
+                    L"Visitenbezeichnung",
+                    L"Visite",
+                    L"Visit"
+                });
+
+            const std::wstring visitExtra =
+                getMetadataValue({
+                    L"Visiten-Zusatz",
+                    L"Visitenzusatz",
+                    L"Zusatz",
+                    L"ECP"
+                });
+
+            std::wstring line =
+                date::FormatGermanDate(visit.date)
+                + L"  ·  "
+                + visit.patientId;
+
+            if (!visitName.empty())
+                line += L"  ·  " + visitName;
+
+            if (!visitExtra.empty())
+                line += L"  ·  " + visitExtra;
+
+            upcoming.Children().Append(ui::Text(line, 13, false));
+
+            if (++shown >= 8)
+                break;
         }
         if (shown == 0) upcoming.Children().Append(ui::Text(L"Keine zukünftigen Visiten mit Datum hinterlegt.", 12, false));
-        auto upcomingCard = ui::Card(upcoming); upcomingCard.Margin(Thickness{ 0,0,6,0 }); Grid::SetColumn(upcomingCard, 0); cards.Children().Append(upcomingCard);
+        auto upcomingCard = ui::Card(upcoming);
 
         auto docsCard = BuildDocumentQuickLinks(study, L"Bestellung");
-        docsCard.Margin(Thickness{ 6,0,0,0 });
-        Grid::SetColumn(docsCard, 1);
-        cards.Children().Append(docsCard);
-        panel.Children().Append(cards);
+        panel.Children().Append(MakeResponsiveTwoCardGrid(upcomingCard, docsCard));
 
         auto forecastNote = ui::Text(L"Bestellfenster mit '(Prognose)' beruhen auf einem hinterlegten Prognoseintervall oder einem aus vorhandenen Terminen abgeleiteten typischen Abstand, wenn die terminierten Visiten noch nicht weit genug in die Zukunft reichen.", 11, false);
         forecastNote.Foreground(ui::Brush(95, 107, 125));
@@ -1295,7 +1643,6 @@ namespace med
         return panel;
     }
 
-    /// Erzeugt kontextbezogene Dokumentlinks, ohne die Dokumente selbst zu laden.
     FrameworkElement MainWindow::BuildDocumentQuickLinks(const StudyData& study, const std::wstring& categoryContains)
     {
         StackPanel panel;
@@ -1311,7 +1658,7 @@ namespace med
             ColumnDefinition c1; c1.Width(GridLength{ 1, GridUnitType::Star });
             ColumnDefinition c2; c2.Width(GridLength{ 0, GridUnitType::Auto });
             row.ColumnDefinitions().Append(c1); row.ColumnDefinitions().Append(c2);
-            auto text = ui::Text(doc.category + L"  ·  " + doc.title, 12, false); text.VerticalAlignment(VerticalAlignment::Center);
+            auto text = ui::Text(doc.category + L"  ·  " + doc.title, 13, false); text.VerticalAlignment(VerticalAlignment::Center);
             row.Children().Append(text);
             auto open = MakeButton(L"Öffnen");
             auto path = doc.path;
@@ -1325,11 +1672,6 @@ namespace med
         return ui::Card(panel);
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Bestellungen
-    // -------------------------------------------------------------------------
-    // Tabelle und Eingabemasken arbeiten immer IMP-spezifisch. Änderungen werden
-    // über ExcelStudyRepository in die tatsächliche Quellzeile geschrieben.
     FrameworkElement MainWindow::BuildOrders(const StudyData& study)
     {
         StackPanel panel;
@@ -1385,23 +1727,16 @@ namespace med
         {
             const auto orderRows = DisplayRows(imp->orders, 300);
             const auto orderKeys = DisplayRowKeys(imp->orders, 300);
-            panel.Children().Append(ui::Card(BuildInteractiveTable(orderTableKey, imp->orders.headers, orderRows, orderKeys, 120, true), 0));
+            panel.Children().Append(BuildInteractiveTable(orderTableKey, imp->orders.headers, orderRows, orderKeys, 120, true));
         }
         else
         {
             panel.Children().Append(ui::Card(ui::Text(L"Das für dieses IMP konfigurierte Bestellblatt wurde nicht gefunden oder enthält keine erkennbare Kopfzeile.")));
         }
 
-        // Die drei Arbeitsschritte bewusst nebeneinander: bearbeiten, neu erfassen, Dokumente.
-        // Damit bleibt der Reiter auch auf kleineren Monitoren übersichtlich und benötigt
-        // wesentlich weniger vertikales Scrollen.
-        Grid workArea;
-        ColumnDefinition c1; c1.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition c2; c2.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition c3; c3.Width(GridLength{ 1, GridUnitType::Star });
-        workArea.ColumnDefinitions().Append(c1);
-        workArea.ColumnDefinitions().Append(c2);
-        workArea.ColumnDefinitions().Append(c3);
+        // Die drei Arbeitsschritte werden responsiv angeordnet. Auf großen Fenstern
+        // stehen sie nebeneinander, auf kleineren Displays werden sie in zwei bzw.
+        // eine Spalte umgebrochen. Dadurch bleiben Felder und Schrift unverzerrt.
 
         // 1) Ausgewählte Bestellung bearbeiten
         StackPanel editor;
@@ -1466,9 +1801,6 @@ namespace med
                 12, false));
         }
         auto editorCard = ui::Card(editor);
-        editorCard.Margin(Thickness{ 0,0,6,0 });
-        Grid::SetColumn(editorCard, 0);
-        workArea.Children().Append(editorCard);
 
         // 2) Neue Bestellung erfassen
         StackPanel form;
@@ -1513,17 +1845,11 @@ namespace med
             form.Children().Append(ui::Text(L"Für dieses IMP stehen aktuell keine Bestellspalten zur Eingabe zur Verfügung.", 12, false));
         }
         auto formCard = ui::Card(form);
-        formCard.Margin(Thickness{ 6,0,6,0 });
-        Grid::SetColumn(formCard, 1);
-        workArea.Children().Append(formCard);
 
         // 3) Dokumente & Vorlagen
         auto docsCard = BuildDocumentQuickLinks(study, imp->documentCategory.empty() ? L"Bestellung" : imp->documentCategory);
-        docsCard.Margin(Thickness{ 6,0,0,0 });
-        Grid::SetColumn(docsCard, 2);
-        workArea.Children().Append(docsCard);
 
-        panel.Children().Append(workArea);
+        panel.Children().Append(MakeResponsiveThreeCardGrid(editorCard, formCard, docsCard));
         return panel;
     }
 
@@ -1542,11 +1868,6 @@ namespace med
         return -1;
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Wareneingang / Bestand
-    // -------------------------------------------------------------------------
-    // Ein Wareneingang legt eine Inventarzeile pro Box/Kit an. Spätere Ausgabe,
-    // Rückgabe oder Vernichtung wird durch Bearbeiten der betreffenden Zeile dokumentiert.
     FrameworkElement MainWindow::BuildInventory(const StudyData& study)
     {
         StackPanel panel;
@@ -1594,18 +1915,11 @@ namespace med
 
         const auto inventoryRows = DisplayRows(imp->inventory, 500);
         const auto inventoryKeys = DisplayRowKeys(imp->inventory, 500);
-        panel.Children().Append(ui::Card(BuildInteractiveTable(inventoryTableKey, imp->inventory.headers, inventoryRows, inventoryKeys, 140, true), 0));
+        panel.Children().Append(BuildInteractiveTable(inventoryTableKey, imp->inventory.headers, inventoryRows, inventoryKeys, 140, true));
 
-        Grid forms;
-        ColumnDefinition left;
-        left.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition middle;
-        middle.Width(GridLength{ 1, GridUnitType::Star });
-        ColumnDefinition right;
-        right.Width(GridLength{ 1, GridUnitType::Star });
-        forms.ColumnDefinitions().Append(left);
-        forms.ColumnDefinitions().Append(middle);
-        forms.ColumnDefinitions().Append(right);
+        // Die drei Arbeitskarten werden weiter unten responsiv zusammengesetzt.
+        // So bleibt die Eingabe auf kleineren Displays lesbar, statt drei schmale
+        // Spalten zwanghaft nebeneinander zu pressen.
 
         // 1) Wareneingang erfassen
         const bool batchCapable =
@@ -1850,9 +2164,6 @@ namespace med
         }
 
         auto batchCard = ui::Card(batch);
-        batchCard.Margin(Thickness{ 0,0,6,0 });
-        Grid::SetColumn(batchCard, 0);
-        forms.Children().Append(batchCard);
 
         // 2) ausgewählten Inventardatensatz bearbeiten
         StackPanel editor;
@@ -1936,25 +2247,14 @@ namespace med
         }
 
         auto editorCard = ui::Card(editor);
-        editorCard.Margin(Thickness{ 6,0,6,0 });
-        Grid::SetColumn(editorCard, 1);
-        forms.Children().Append(editorCard);
 
         // 3) Dokumente & Vorlagen direkt im Arbeitsbereich anzeigen.
         auto inventoryDocs = BuildDocumentQuickLinks(study, L"Wareneingang");
-        inventoryDocs.Margin(Thickness{ 6,0,0,0 });
-        Grid::SetColumn(inventoryDocs, 2);
-        forms.Children().Append(inventoryDocs);
 
-        panel.Children().Append(forms);
+        panel.Children().Append(MakeResponsiveThreeCardGrid(batchCard, editorCard, inventoryDocs));
         return panel;
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Patientenvisiten
-    // -------------------------------------------------------------------------
-    // Die Excel-Matrix wird für die GUI in Visitenzeilen und patientenspezifische
-    // Termine übersetzt; gespeichert wird wieder an die originale Excel-Koordinate.
     std::wstring MainWindow::JoinVisitMetadata(const VisitRowDefinition& row)
     {
         std::wstring result;
@@ -1992,14 +2292,9 @@ namespace med
             visitKeys.push_back(static_cast<int>(index));
         }
         const std::wstring visitTableKey = study.studyName + L"|visits";
-        panel.Children().Append(ui::Card(BuildInteractiveTable(visitTableKey, headers, rows, visitKeys, 180, true), 0));
+        panel.Children().Append(BuildInteractiveTable(visitTableKey, headers, rows, visitKeys, 180, true));
 
-        Grid forms;
-        for (int i = 0; i < 3; ++i)
-        {
-            ColumnDefinition c; c.Width(GridLength{ 1, GridUnitType::Star });
-            forms.ColumnDefinitions().Append(c);
-        }
+        // Auch die drei Visiten-Arbeitsbereiche werden responsiv angeordnet.
 
         // 1) Visite terminieren / bearbeiten
         StackPanel edit; edit.Spacing(6);
@@ -2048,7 +2343,7 @@ namespace med
             catch (const std::exception& e) { ShowError(e); }
         });
         edit.Children().Append(saveDate);
-        auto editCard = ui::Card(edit); editCard.Margin(Thickness{ 0,0,6,0 }); Grid::SetColumn(editCard, 0); forms.Children().Append(editCard);
+        auto editCard = ui::Card(edit);
         RefreshVisitDateInput();
 
         // 2) Patient hinzufügen
@@ -2063,7 +2358,7 @@ namespace med
             catch (const std::exception& e) { ShowError(e); }
         });
         patientForm.Children().Append(addPatient);
-        auto patientCard = ui::Card(patientForm); patientCard.Margin(Thickness{ 6,0,6,0 }); Grid::SetColumn(patientCard, 1); forms.Children().Append(patientCard);
+        auto patientCard = ui::Card(patientForm);
 
         // 3) Visitenzeile hinzufügen
         StackPanel visitForm; visitForm.Spacing(6);
@@ -2089,9 +2384,9 @@ namespace med
             catch (const std::exception& e) { ShowError(e); }
         });
         visitForm.Children().Append(addVisit);
-        auto visitCard = ui::Card(visitForm); visitCard.Margin(Thickness{ 6,0,0,0 }); Grid::SetColumn(visitCard, 2); forms.Children().Append(visitCard);
+        auto visitCard = ui::Card(visitForm);
 
-        panel.Children().Append(forms);
+        panel.Children().Append(MakeResponsiveThreeCardGrid(editCard, patientCard, visitCard));
         return panel;
     }
 
@@ -2115,11 +2410,6 @@ namespace med
         m_visitDateInput.Text(L"");
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Berichte
-    // -------------------------------------------------------------------------
-    // MainWindow sammelt lediglich Auswahlparameter. ReportService übernimmt Filterung,
-    // Vorlagenwahl und Erzeugung der eigentlichen Excel-Ausgabedatei.
     FrameworkElement MainWindow::BuildReports(const StudyData& study)
     {
         StackPanel panel; panel.Spacing(12); panel.Margin(Thickness{ 0,12,0,0 });
@@ -2271,10 +2561,6 @@ namespace med
         return panel;
     }
 
-    // -------------------------------------------------------------------------
-    // Dokumente und Vorlagen
-    // -------------------------------------------------------------------------
-    // Dokumente werden nur als Pfade verwaltet und beim Öffnen an Windows übergeben.
     FrameworkElement MainWindow::BuildDocuments(const StudyData& study)
     {
         StackPanel panel; panel.Spacing(10); panel.Margin(Thickness{ 0,12,0,0 });
@@ -2303,9 +2589,6 @@ namespace med
         return panel;
     }
 
-    // -------------------------------------------------------------------------
-    // Reiter: Notizen
-    // -------------------------------------------------------------------------
     FrameworkElement MainWindow::BuildNotes(const StudyData& study)
     {
         StackPanel panel; panel.Spacing(10); panel.Margin(Thickness{ 0,12,0,0 });
@@ -2327,9 +2610,6 @@ namespace med
         return ui::Card(panel);
     }
 
-    // =========================================================================
-    // Globale Zusatzseiten
-    // =========================================================================
     void MainWindow::RenderStudies()
     {
         m_rendering = true;
@@ -2356,7 +2636,7 @@ namespace med
                 s.loadWarning.empty() ? L"–" : L"Excel-Studienname weicht vom Ordnernamen ab" });
         }
         if (rows.empty()) rows.push_back({ L"Keine Studie erkannt", L"0", L"0", L"0", L"–", L"–", L"–" });
-        page.Children().Append(ui::Card(BuildInteractiveTable(L"global|studies", headers, rows, {}, 100, false), 0));
+        page.Children().Append(BuildInteractiveTable(L"global|studies", headers, rows, {}, 100, false));
 
         for (const auto& s : m_studies)
         {
@@ -2443,11 +2723,6 @@ namespace med
         scroll.Content(page); m_navigation.Content(scroll); m_rendering = false;
     }
 
-    // -------------------------------------------------------------------------
-    // Einstellungen
-    // -------------------------------------------------------------------------
-    // Enthält ausschließlich lokale Programm-/Pfadoptionen. Fachliche Stammdaten
-    // einer Studie werden weiterhin in der jeweiligen Excel-Datei gepflegt.
     void MainWindow::RenderSettings()
     {
         m_rendering = true;
@@ -2588,9 +2863,6 @@ namespace med
         scroll.Content(page); m_navigation.Content(scroll); m_rendering = false;
     }
 
-    // =========================================================================
-    // Systemaktionen und Meldungen
-    // =========================================================================
     void MainWindow::OpenPath(const std::filesystem::path& path) const
     {
         if (!std::filesystem::exists(path) && path.extension() != L".url")
