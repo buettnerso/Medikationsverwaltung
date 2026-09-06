@@ -1,0 +1,16 @@
+BETREFF: [Studie] – Bestellung Prüfmedikation – [Datum]
+
+Guten Tag,
+
+hiermit möchten wir für die Studie [Studie] folgende Bestellung auslösen:
+
+Medikament / Material: [Bezeichnung]
+Menge: [Menge]
+Studienzentrum: [Zentrum]
+
+Die erforderlichen Bestell- bzw. Versandunterlagen sind beigefügt.
+
+Mit freundlichen Grüßen
+[Name]
+
+HINWEIS: Dies ist nur eine technische Platzhaltervorlage. Vor produktiver Nutzung bitte durch die studienspezifisch freigegebene Vorlage ersetzen.
