@@ -1,0 +1,91 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\sophi\\OneDrive\\Medikationsverwaltung\\Medikationsverwaltung\\Medikationsverwaltung.vcxproj": {}
+  },
+  "projects": {
+    "C:\\Users\\sophi\\OneDrive\\Medikationsverwaltung\\Medikationsverwaltung\\Medikationsverwaltung.vcxproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\sophi\\OneDrive\\Medikationsverwaltung\\Medikationsverwaltung\\Medikationsverwaltung.vcxproj",
+        "projectName": "Medikationsverwaltung",
+        "projectPath": "C:\\Users\\sophi\\OneDrive\\Medikationsverwaltung\\Medikationsverwaltung\\Medikationsverwaltung.vcxproj",
+        "packagesPath": "C:\\Users\\sophi\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\sophi\\OneDrive\\Medikationsverwaltung\\Medikationsverwaltung\\obj\\",
+        "projectStyle": "PackageReference",
+        "UsingMicrosoftNETSdk": false,
+        "fallbackFolders": [
+          "D:\\VisualStudio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\sophi\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "native"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "native": {
+            "framework": "native",
+            "projectReferences": {}
+          }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "native": {
+          "framework": "native",
+          "dependencies": {
+            "Microsoft.Windows.CppWinRT": {
+              "target": "Package",
+              "version": "[3.0.260818.1, )"
+            },
+            "Microsoft.Windows.SDK.BuildTools": {
+              "target": "Package",
+              "version": "[10.0.28000.2705, )"
+            },
+            "Microsoft.WindowsAppSDK": {
+              "target": "Package",
+              "version": "[2.4.0, )"
+            }
+          }
+        }
+      },
+      "runtimes": {
+        "win10-arm": {
+          "#import": []
+        },
+        "win10-arm-aot": {
+          "#import": []
+        },
+        "win10-arm64": {
+          "#import": []
+        },
+        "win10-arm64-aot": {
+          "#import": []
+        },
+        "win10-x64": {
+          "#import": []
+        },
+        "win10-x64-aot": {
+          "#import": []
+        },
+        "win10-x86": {
+          "#import": []
+        },
+        "win10-x86-aot": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

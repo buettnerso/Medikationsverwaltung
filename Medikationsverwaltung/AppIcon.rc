@@ -1,0 +1,13 @@
+// ============================================================================
+// Datei: AppIcon.rc
+// Zweck: Bindet das Anwendungsicon als native Windows-Ressource direkt in die EXE ein.
+//
+// Verantwortlichkeiten:
+// - Dadurch ist das Icon nicht von einem externen Laufzeitpfad abhängig.
+//
+// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
+// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
+// ============================================================================
+#include "resource.h"
+
+IDI_APP_ICON ICON "Assets\\Medikationsverwaltung_AppIcon.ico"

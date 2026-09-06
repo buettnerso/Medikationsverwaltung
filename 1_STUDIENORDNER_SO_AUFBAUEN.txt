@@ -1,0 +1,63 @@
+MEDIKATIONSVERWALTUNG v5 – STUDIENORDNER UND STUDIENPROFIL
+
+Standard-Datenordner:
+%USERPROFILE%\Documents\Medikationsverwaltung\Studien
+
+Der Pfad kann in der Anwendung frei geändert werden.
+
+ORDNERSTRUKTUR:
+
+<Studienordner>\
+│
+├── RUX-ECP\
+│   ├── RUX_ECP_Bestellübersicht.xlsx
+│   └── Documents\...
+│
+└── SEQUENCE\
+    ├── SEQUENCE_Bestellübersicht.xlsx
+    └── Documents\...
+
+Der direkte Unterordner ist der verbindliche Studienname.
+
+NEUE / MULTI-IMP-STUDIEN:
+Im Idealfall ist das ERSTE Excel-Blatt ein "Studienprofil".
+Pro IMP/Produkt steht dort genau eine Zeile.
+
+Vorlage im Projekt / Ausgabeordner:
+Templates\Studienprofil_Vorlage.xlsx
+
+Wichtige Angaben pro IMP:
+- IMP-ID
+- IMP-Name
+- Warenart (Studienware / Handelsware)
+- Applikationsform
+- Bestellpflicht Ja/Nein
+- Mindestbestand
+- Lieferzeit
+- Verbrauch pro Visite
+- Pufferzeit
+- optionales Prognoseintervall
+- Bestellblatt
+- Bestellspalte
+- Inventarblatt
+- ggf. Inventar-IMP-Spalte + Filterwert
+- ggf. Visitenfilter
+- Bestellverfahren
+- Dokumentkategorie
+
+BESTEHENDE EIN-IMP-DATEIEN:
+Ein Studienprofil ist nicht zwingend erforderlich. Fehlt es, versucht das Programm
+weiterhin die bisherige Struktur aus Meldebestand, Bestellübersicht, DrugInventory
+und PatientenVisiten als Legacy-Studie zu laden.
+
+HANDELSWARE:
+Kann im Studienprofil mit Warenart=Handelsware und Bestellpflicht=Nein angelegt
+werden. Sie kann dann im Bestand/bei Verabreichungen dokumentiert werden, wird
+aber nicht in der Studien-Bestellpriorisierung geführt.
+
+DRUGACCOUNT:
+Globale Vorlage:
+Templates\Bericht_DrugAccount.xlsx
+
+IMP-spezifisch optional:
+<Studie>\Documents\DrugAccount\<IMP-ID>\Bericht_DrugAccount.xlsx
