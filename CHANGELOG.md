@@ -40,11 +40,32 @@ Die lokale CSV-Lösung verbessert die Nachvollziehbarkeit erheblich, ist jedoch 
 
 
 
+# Medikationsverwaltung v8.14
 
+## Lesbarkeit / Schriftgrößen
 
+Die Schriftgrößen wurden bewusst nur moderat erhöht, damit die Anwendung auf
+kleineren Displays besser lesbar ist, ohne das responsive Layout erneut zu
+verändern.
 
+### Geändert
 
+- Tabelleninhalt: `12 -> 13`
+- Tabellenkopf: explizit `13`, zusätzlich `SemiBold`
+- Kleine Sekundär- und Hinweistexte: `11 -> 12`
+- Formularbeschriftungen: `12 -> 13`
+- Tabellenzellen erhalten wegen der größeren Schrift minimal mehr vertikales Padding.
+- Die Höhe der Tabellenkopfzeile wurde geringfügig angepasst.
 
+### Unverändert
+
+- Hauptüberschriften und größere Titel bleiben unverändert.
+- Responsive Fensterlogik aus v8.12 bleibt erhalten.
+- Card-Table-Optik aus v8.13 bleibt erhalten.
+- Tabellenbreiten, Mindestbreiten und horizontales Scrollen bleiben unverändert.
+- Fixierte Tabellenköpfe bleiben erhalten.
+- Tabellenhöhe von ca. 510 px bleibt erhalten.
+- Filter, Sortierung, Auswahl und gespeicherte Scrollpositionen bleiben erhalten.
 
 
 
@@ -85,6 +106,48 @@ Die Übersicht zeigt pro zukünftiger Visite nur noch:
 
 Weitere Metadaten werden in dieser kompakten Übersicht nicht mehr angehängt.
 
+
+
+# v8.12 – Responsive Oberfläche für kleinere Displays
+
+## Fenstergröße
+- Die Anwendung startet nicht mehr fest mit 1500 × 900 Pixeln.
+- Die Startgröße orientiert sich an ca. 980 × 680 logischen Pixeln und damit an einem kompakten Querformat.
+- Bei kleineren Displays wird die Startgröße automatisch auf maximal rund 90 % des verfügbaren Arbeitsbereichs begrenzt.
+- Das Fenster kann weiterhin frei vergrößert und maximiert werden.
+- Die Schriftgröße wird nicht dynamisch verkleinert oder vergrößert.
+
+## Navigation
+- Die linke Navigation verwendet jetzt den adaptiven `NavigationViewPaneDisplayMode::Auto`.
+- Auf großen Fenstern ist die Navigation vollständig geöffnet.
+- Bei mittleren Breiten wechselt sie in die kompakte Darstellung.
+- Auf kleinen Fenstern wird sie als Overlay/Hamburger-Menü dargestellt, damit mehr Breite für den Arbeitsbereich bleibt.
+
+## Responsive Arbeitsbereiche
+- Die drei Arbeitskarten in Bestellungen, Wareneingang/Bestand und Patientenvisiten werden abhängig von der verfügbaren Breite angeordnet:
+  - groß: 3 Spalten,
+  - mittel: 2 Spalten,
+  - klein: 1 Spalte.
+- Die Karten werden nicht skaliert; nur ihre Position im Layout ändert sich.
+- Die beiden Karten in der Studienübersicht wechseln auf kleinen Fenstern von zwei Spalten auf eine vertikale Anordnung.
+
+## Studienauswahl
+- Studienauswahl und Schnellaktionen reagieren auf die verfügbare Breite.
+- Auf breiten Fenstern stehen Aktionen rechts neben der Studienauswahl.
+- Auf schmaleren Fenstern wechseln die Aktionen in eine zweite Zeile.
+- Die Aktionsleiste kann bei sehr kleinen Breiten horizontal scrollen, anstatt Buttons oder Texte zusammenzudrücken.
+
+## Tabellen
+- Das bestehende Tabellenprinzip bleibt erhalten:
+  - sinnvolle Mindestbreiten pro Spalte,
+  - keine Skalierung der Tabellen-Schrift,
+  - horizontales Scrollen, sobald die Mindestbreiten nicht mehr in das Fenster passen,
+  - fixierte Spaltenüberschrift,
+  - gespeicherte Scrollposition.
+- Die Tabellenhöhe bleibt auf dem größeren Stand aus v8.9.
+
+## Ziel
+Die Oberfläche soll auf kleinen Notebooks und unterschiedlichen Windows-Skalierungsfaktoren stabil lesbar bleiben. Statt alle Elemente proportional zu verkleinern, werden Bereiche umgebrochen und Tabellen bei Bedarf gescrollt.
 
 
 
