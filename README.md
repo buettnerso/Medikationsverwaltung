@@ -1,6 +1,6 @@
-# Medikationsverwaltung – WinUI/C++ v8.11
+# Medikationsverwaltung – WinUI/C++ 
 
-Die Anwendung verwendet weiterhin **eine Excel-Datei pro Studie als eigentliche Datenhaltung**. Die Benutzeroberfläche liest, bearbeitet und exportiert diese Daten, ohne eine zusätzliche Datenbank einzuführen.
+Die Anwendung verwendet **eine Excel-Datei pro Studie als eigentliche Datenhaltung**. Die Benutzeroberfläche liest, bearbeitet und exportiert diese Daten, ohne eine zusätzliche Datenbank einzuführen.
 
 ## Code-Dokumentation
 
@@ -107,19 +107,35 @@ Unter **Einstellungen → Exportpfade je Studie** kann für jede Studie ein eige
 
 Ein echter MSVC-/WinUI-/Excel-COM-Build kann in der Bereitstellungsumgebung dieses Pakets nicht ausgeführt werden. Die Projektdateien werden daher statisch geprüft; der abschließende Build erfolgt unter Windows in Visual Studio.
 
-## Änderungen ab v8.5
 
-- Bestellungen: Bearbeiten, Neuerfassung und Dokumente stehen dreispaltig nebeneinander.
-- Wareneingang/Bestand: Wareneingang, Datensatzbearbeitung und Dokumente stehen dreispaltig nebeneinander.
-- Offene Bestellungen werden ausschließlich über eine leere Zelle in `Erhalten am` bestimmt.
 
-## Änderungen v8.6
+# v8.15 – AuditLog und Versionsanzeige
 
-v8.6 behebt die Erfassung mehrerer Box-/Kit-Nummern bei unterschiedlichen WinUI-Zeilenumbruchformaten und reduziert den Excel-COM-Overhead beim Laden und nach Speichervorgängen. Details siehe `CHANGELOG_v8_6.md`.
+## AuditLog
 
-## Änderungen in v8.7
+- Neue zentrale Komponenten `AuditLogger.h` und `AuditLogger.cpp`.
+- Fachliche Änderungen werden automatisch in einer lokalen monatlichen CSV-Datei protokolliert.
+- Speicherort: `%LOCALAPPDATA%\Medikationsverwaltung\Audit`.
+- Der Rechnername ist Bestandteil des Dateinamens.
+- Jeder Eintrag enthält u. a. UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, EUCT-No., IMP, Blatt, Excel-Zeile sowie alten und neuen Wert.
+- Das AuditLog kann in der GUI nicht deaktiviert werden.
+- Vor schreibenden Änderungen wird geprüft, ob der Audit-Speicher beschreibbar ist. Ist dies nicht möglich, wird die Änderung abgebrochen.
+- Batch-Wareneingänge verwenden eine gemeinsame `OperationId` für zusammengehörige Inventarzeilen.
+- DrugAccount-Exporte werden ebenfalls protokolliert.
 
-- Datumswerte werden beim Schreiben als COM-Datum an Excel übergeben.
-- Tabellenköpfe bleiben beim vertikalen Scrollen sichtbar.
-- Tabellenansichten sind niedriger, damit Eingabebereiche (insbesondere Wareneingang) ohne langes Seitenscrollen erreichbar bleiben.
-- Tabellen-Schriftgröße wurde nicht verändert.
+## GUI
+
+- Neue kleine Versionsanzeige in der Fußzeile der linken Navigation.
+- Neue AuditLog-Karte unter **Einstellungen** mit Anzeige des Speicherortes und Button **„AuditLog-Ordner öffnen“**.
+
+## Versionierung
+
+- Neue zentrale Datei `AppVersion.h`.
+- Aktuelle Produktversion: `1.1.0`.
+- Die Versionsnummer wird sowohl in der GUI als auch im AuditLog verwendet.
+
+## Hinweis zur Revisionssicherheit
+
+Die lokale CSV-Lösung verbessert die Nachvollziehbarkeit erheblich, ist jedoch noch kein manipulationsgeschützter regulatorischer Audit Trail. Für einen revisionssicheren Produktivbetrieb wären zentraler geschützter Speicher, restriktive Berechtigungen und ggf. kryptografischer Manipulationsschutz erforderlich.
+
+
