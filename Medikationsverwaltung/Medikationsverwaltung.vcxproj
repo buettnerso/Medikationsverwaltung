@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Projektdatei der Medikationsverwaltung. Definiert WinUI/C++20, NuGet-Abhängigkeiten,
-       native Bibliotheken, Quelldateien, eingebettete Ressourcen und mitzukopierende Templates. -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
@@ -12,7 +10,7 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <!-- Globale WinUI-/Deployment-Einstellungen: unpackaged und WindowsAppSDK self-contained. -->
+
   <PropertyGroup Label="Globals">
     <ProjectGuid>{A34926C2-60EF-4A87-BFAB-8E2CF92B67B4}</ProjectGuid>
     <ProjectName>Medikationsverwaltung</ProjectName>
@@ -35,7 +33,9 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <EnableNativePackageReferenceSupport>true</EnableNativePackageReferenceSupport>
   </PropertyGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v145</PlatformToolset>
@@ -51,11 +51,13 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <!-- Gemeinsame Compiler- und Linkereinstellungen für Debug und Release. -->
+
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -72,33 +74,30 @@
       <AdditionalDependencies>user32.lib;ole32.lib;oleaut32.lib;shell32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
-    <ClCompile>
-      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
+    <ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
-    <ClCompile>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <Link>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-    </Link>
+    <ClCompile><PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <Link><EnableCOMDATFolding>true</EnableCOMDATFolding><OptimizeReferences>true</OptimizeReferences></Link>
   </ItemDefinitionGroup>
-  <!-- NuGet-Pakete für WinUI 3, C++/WinRT und Windows SDK Build Tools. -->
+
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="Microsoft.Windows.CppWinRT" Version="3.0.260818.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
   </ItemGroup>
+
   <ItemGroup>
     <Manifest Include="app.manifest" />
   </ItemGroup>
-  <!-- Header- und Quellcodedateien des Projekts. -->
+
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="App.h" />
+    <ClInclude Include="AppVersion.h" />
+    <ClInclude Include="AuditLogger.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="Models.h" />
     <ClInclude Include="DateUtils.h" />
@@ -110,12 +109,12 @@
     <ClInclude Include="UiHelpers.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
+
   <ItemGroup>
-    <ClCompile Include="pch.cpp">
-      <PrecompiledHeader>Create</PrecompiledHeader>
-    </ClCompile>
+    <ClCompile Include="pch.cpp"><PrecompiledHeader>Create</PrecompiledHeader></ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="App.cpp" />
+    <ClCompile Include="AuditLogger.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="DateUtils.cpp" />
     <ClCompile Include="Settings.cpp" />
@@ -125,11 +124,11 @@
     <ClCompile Include="ReportService.cpp" />
     <ClCompile Include="UiHelpers.cpp" />
   </ItemGroup>
-  <!-- Native Windows-Ressourcen; AppIcon.rc bettet das Anwendungsicon in die EXE ein. -->
+
   <ItemGroup>
     <ResourceCompile Include="AppIcon.rc" />
   </ItemGroup>
-  <!-- Berichtsvorlagen werden beim Build in den Ausgabordner kopiert. -->
+
   <ItemGroup>
     <Content Include="Templates\DrugAccount_Gesamt.xlsx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -141,7 +140,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <!-- Beispielstudien dienen nur Test/Dokumentation und werden nicht als Programmcode kompiliert. -->
+
   <ItemGroup>
     <None Include="Beispielstudien\RUX-ECP\study.config.ini" />
     <None Include="Beispielstudien\RUX-ECP\RUX_ECP_Bestellübersicht_01062026.xlsx" />
@@ -149,6 +148,8 @@
     <None Include="Beispielstudien\RUX-ECP\Documents\Bestellung\Sponsorportal.url" />
     <None Include="Beispielstudien\RUX-ECP\Documents\Wareneingang\README.txt" />
     <None Include="Beispielstudien\RUX-ECP\Documents\DrugAccount\README.txt" />
+    <None Include="Beispielstudien\SEQUENCE\SEQUENCE_Bestellübersicht_01062026.xlsx" />
   </ItemGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

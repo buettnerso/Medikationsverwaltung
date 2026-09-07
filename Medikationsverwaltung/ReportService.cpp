@@ -1,17 +1,6 @@
-// ============================================================================
-// Datei: ReportService.cpp
-// Zweck: Erzeugt DrugAccount-Excelberichte aus den aktuell geladenen Inventardaten.
-//
-// Verantwortlichkeiten:
-// - Filtert Daten nach IMP und optional Patient.
-// - Befüllt globale, studienweite oder IMP-spezifische Excel-Vorlagen.
-// - Die Studien-Excel bleibt Datenquelle; Berichtdateien werden immer neu erzeugt.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "pch.h"
 #include "ReportService.h"
+#include "AuditLogger.h"
 
 #include "DateUtils.h"
 #include "ExcelCom.h"
@@ -23,11 +12,6 @@
 
 namespace
 {
-    // -------------------------------------------------------------------------
-    // Export-Hilfsfunktionen
-    // -------------------------------------------------------------------------
-    // Dateinamen, CSV-Escaping und Spaltenerkennung werden hier gebündelt, damit
-    // die öffentlichen Exportmethoden nur den fachlichen Ablauf enthalten.
     std::string Utf8(const std::wstring& value)
     {
         if (value.empty()) return {};
@@ -83,11 +67,6 @@ namespace
         out.write(reinterpret_cast<const char*>(bom), 3);
     }
 
-    // -------------------------------------------------------------------------
-    // Spalten im Inventar erkennen
-    // -------------------------------------------------------------------------
-    // Die Berichte akzeptieren mehrere deutsche und englische Bezeichnungen. Exakte
-    // Treffer werden bevorzugt, damit ähnlich benannte Felder nicht verwechselt werden.
     int FindHeaderLike(const med::SheetTable& table, const std::vector<std::wstring>& candidates)
     {
         // Exakte Treffer haben Vorrang. Das verhindert z. B., dass "Return Comment"
@@ -146,10 +125,6 @@ namespace
         return display.empty() ? med::CellValue::Empty() : med::CellValue::Text(display);
     }
 
-    // -------------------------------------------------------------------------
-    // Passende Berichtsvorlage bestimmen
-    // -------------------------------------------------------------------------
-    // Reihenfolge: IMP-spezifische Vorlage, studienweite Vorlage, globale Vorlage.
     std::filesystem::path ResolveTemplate(
         const med::StudyData& study,
         const med::ImpData& imp,
@@ -190,8 +165,6 @@ namespace
             : "DrugAccount-Gesamtvorlage wurde nicht gefunden.");
     }
 
-    /// Erweitert eine Vorlage nur bei Bedarf und kopiert dabei die Formatierung der
-    /// letzten Vorlagenzeile auf neu benötigte Datenzeilen.
     void EnsureRows(med::excel::Workbook& workbook, const std::wstring& sheet, int templateLastRow, int requiredLastRow, int lastColumn)
     {
         for (int row = templateLastRow + 1; row <= requiredLastRow; ++row)
@@ -215,11 +188,6 @@ namespace
             : "Die Gesamtvorlage enthält kein Arbeitsblatt 'DrugAccount_Gesamt'.");
     }
 
-    // -------------------------------------------------------------------------
-    // Gesamtbericht befüllen
-    // -------------------------------------------------------------------------
-    // Jede Inventarzeile des gewählten IMP wird als eigener DrugAccount-Datensatz
-    // übernommen; fehlende optionale Felder bleiben leer.
     int PopulateOverallSheet(
         med::excel::Workbook& workbook,
         const std::wstring& sheet,
@@ -313,11 +281,6 @@ namespace
         return static_cast<int>(rows.size());
     }
 
-    // -------------------------------------------------------------------------
-    // Patientenbericht befüllen
-    // -------------------------------------------------------------------------
-    // Vor dem Schreiben werden ausschließlich Inventardatensätze des ausgewählten
-    // Patienten herausgefiltert. Signaturspalten werden nicht automatisch befüllt.
     int PopulatePatientSheet(
         med::excel::Workbook& workbook,
         const std::wstring& sheet,
@@ -423,11 +386,6 @@ namespace
         return false;
     }
 
-    // -------------------------------------------------------------------------
-    // Gemeinsamer Ablauf beider Excel-Berichte
-    // -------------------------------------------------------------------------
-    // Vorlage kopieren -> Arbeitsblatt befüllen -> Daten verifizieren -> speichern.
-    // Dadurch wird niemals die Mastervorlage oder die Studien-Excel überschrieben.
     med::ReportFiles CreateExcelReport(
         const med::StudyData& study,
         const med::ImpData& imp,
@@ -465,21 +423,45 @@ namespace
 
 namespace med
 {
-    // Öffentliche, bewusst schlanke Fassade für den Gesamtbericht.
     ReportFiles ReportService::ExportDrugAccountOverall(const StudyData& study, const ImpData& imp,
         const std::filesystem::path& reportRoot, const std::filesystem::path& defaultTemplate)
     {
-        return CreateExcelReport(study, imp, reportRoot, defaultTemplate, L"Gesamt", nullptr);
+        AuditLogger::EnsureWritable();
+        auto result = CreateExcelReport(study, imp, reportRoot, defaultTemplate, L"Gesamt", nullptr);
+
+        AuditEntry entry;
+        entry.imp = imp.name;
+        entry.action = L"REPORT_EXPORT_OVERALL";
+        entry.sheet = imp.inventory.sheetName;
+        entry.details = L"DrugAccount Gesamt wurde aus dem aktuellen DrugInventory erzeugt.";
+        entry.changes = {
+            { L"Ausgabedatei", L"", result.excelPath.wstring() },
+            { L"Datenzeilen", L"", std::to_wstring(result.dataRows) }
+        };
+        AuditLogger::Write(study, entry);
+        return result;
     }
 
-    // Öffentliche Fassade für den patientenbezogenen Bericht.
     ReportFiles ReportService::ExportDrugAccountPatient(const StudyData& study, const ImpData& imp, const std::wstring& patientId,
         const std::filesystem::path& reportRoot, const std::filesystem::path& defaultTemplate)
     {
-        return CreateExcelReport(study, imp, reportRoot, defaultTemplate, L"Patient_" + SafeFilePart(patientId), &patientId);
+        AuditLogger::EnsureWritable();
+        auto result = CreateExcelReport(study, imp, reportRoot, defaultTemplate, L"Patient_" + SafeFilePart(patientId), &patientId);
+
+        AuditEntry entry;
+        entry.imp = imp.name;
+        entry.action = L"REPORT_EXPORT_PATIENT";
+        entry.sheet = imp.inventory.sheetName;
+        entry.details = L"DrugAccount pro Patient wurde aus dem aktuellen DrugInventory erzeugt.";
+        entry.changes = {
+            { L"Patient", L"", patientId },
+            { L"Ausgabedatei", L"", result.excelPath.wstring() },
+            { L"Datenzeilen", L"", std::to_wstring(result.dataRows) }
+        };
+        AuditLogger::Write(study, entry);
+        return result;
     }
 
-    // Studienübergreifende CSV-Kurzliste für externe Weiterverarbeitung.
     std::filesystem::path ReportService::ExportStudySummary(const std::vector<StudyData>& studies, const std::filesystem::path& reportRoot)
     {
         std::filesystem::create_directories(reportRoot);

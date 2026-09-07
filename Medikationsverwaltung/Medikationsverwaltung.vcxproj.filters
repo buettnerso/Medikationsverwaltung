@@ -1,124 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <!-- Visual-Studio-Filterdatei. Sie beeinflusst nur die Darstellung im Projektmappen-Explorer,
-       nicht den Build oder die Laufzeitlogik. -->
   <ItemGroup>
-    <Filter Include="Source">
-      <UniqueIdentifier>{CA11009C-9BB1-4F0B-A075-D9DC75314F1B}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header">
-      <UniqueIdentifier>{2E5D019C-E91C-4882-A366-73EE0E0B81AA}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Data">
-      <UniqueIdentifier>{FE82F1D4-6D33-4083-BBF9-96B348C4EF04}</UniqueIdentifier>
-    </Filter>
+    <Filter Include="Source"><UniqueIdentifier>{CA11009C-9BB1-4F0B-A075-D9DC75314F1B}</UniqueIdentifier></Filter>
+    <Filter Include="Header"><UniqueIdentifier>{2E5D019C-E91C-4882-A366-73EE0E0B81AA}</UniqueIdentifier></Filter>
+    <Filter Include="Data"><UniqueIdentifier>{FE82F1D4-6D33-4083-BBF9-96B348C4EF04}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pch.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="main.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="App.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="MainWindow.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="DateUtils.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Settings.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="OrderPlanner.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="ExcelCom.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="ExcelStudyRepository.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="ReportService.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="UiHelpers.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
+    <ClCompile Include="pch.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="main.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="App.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="AuditLogger.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="MainWindow.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="DateUtils.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="Settings.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="OrderPlanner.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="ExcelCom.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="ExcelStudyRepository.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="ReportService.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="UiHelpers.cpp"><Filter>Source</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pch.h">
-      <Filter>Header</Filter>
+    <ClInclude Include="pch.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="App.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="AppVersion.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="AuditLogger.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="MainWindow.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="Models.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="DateUtils.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="Settings.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="OrderPlanner.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="ExcelCom.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="ExcelStudyRepository.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="ReportService.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="UiHelpers.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="App.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="MainWindow.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Models.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="DateUtils.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="Settings.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="OrderPlanner.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ExcelCom.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ExcelStudyRepository.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="ReportService.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="UiHelpers.h">
-      <Filter>Header</Filter>
-    </ClInclude>
-    <ClInclude Include="resource.h" />
   </ItemGroup>
+
   <ItemGroup>
-    <Content Include="Templates\DrugAccount_Gesamt.xlsx">
-      <Filter>Data</Filter>
-    </Content>
-    <Content Include="Templates\DrugAccount_Patient.xlsx">
-      <Filter>Data</Filter>
-    </Content>
+    <Content Include="Templates\DrugAccount_Gesamt.xlsx"><Filter>Data</Filter></Content>
+    <Content Include="Templates\DrugAccount_Patient.xlsx"><Filter>Data</Filter></Content>
     <Content Include="Templates\Studienprofil_Vorlage.xlsx">
       <Filter>Data</Filter>
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Beispielstudien\RUX-ECP\study.config.ini">
-      <Filter>Data</Filter>
-    </None>
-    <None Include="Beispielstudien\RUX-ECP\RUX_ECP_Bestellübersicht_01062026.xlsx">
-      <Filter>Data</Filter>
-    </None>
-    <None Include="Beispielstudien\RUX-ECP\Documents\Bestellung\E-Mail-Vorlage_Bestellung.txt">
-      <Filter>Data</Filter>
-    </None>
-    <None Include="Beispielstudien\RUX-ECP\Documents\Bestellung\Sponsorportal.url">
-      <Filter>Data</Filter>
-    </None>
-    <None Include="Beispielstudien\RUX-ECP\Documents\Wareneingang\README.txt">
-      <Filter>Data</Filter>
-    </None>
-    <None Include="Beispielstudien\RUX-ECP\Documents\DrugAccount\README.txt">
-      <Filter>Data</Filter>
-    </None>
+    <None Include="Beispielstudien\RUX-ECP\study.config.ini"><Filter>Data</Filter></None>
+    <None Include="Beispielstudien\RUX-ECP\RUX_ECP_Bestellübersicht_01062026.xlsx"><Filter>Data</Filter></None>
+    <None Include="Beispielstudien\RUX-ECP\Documents\Bestellung\E-Mail-Vorlage_Bestellung.txt"><Filter>Data</Filter></None>
+    <None Include="Beispielstudien\RUX-ECP\Documents\Bestellung\Sponsorportal.url"><Filter>Data</Filter></None>
+    <None Include="Beispielstudien\RUX-ECP\Documents\Wareneingang\README.txt"><Filter>Data</Filter></None>
+    <None Include="Beispielstudien\RUX-ECP\Documents\DrugAccount\README.txt"><Filter>Data</Filter></None>
   </ItemGroup>
   <ItemGroup>
-    <Manifest Include="app.manifest" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="AppIcon.rc" />
+    <ResourceCompile Include="AppIcon.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

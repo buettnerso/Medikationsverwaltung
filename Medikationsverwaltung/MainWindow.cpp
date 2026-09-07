@@ -3,6 +3,8 @@
 #include "resource.h"
 
 #include "DateUtils.h"
+#include "AppVersion.h"
+#include "AuditLogger.h"
 #include "OrderPlanner.h"
 #include "ReportService.h"
 #include "UiHelpers.h"
@@ -395,6 +397,15 @@ namespace med
         m_navigation.CompactModeThresholdWidth(900);
         m_navigation.ExpandedModeThresholdWidth(1250);
 
+        // Kleine Versionsangabe im Fußbereich der Navigation.
+        // Dieselbe Version wird auch in jeden Audit-Eintrag geschrieben.
+        TextBlock versionFooter;
+        versionFooter.Text(med::version::Display);
+        versionFooter.FontSize(10.0);
+        versionFooter.Foreground(ui::Brush(112, 118, 128));
+        versionFooter.Margin(Thickness{ 12,6,0,10 });
+        m_navigation.PaneFooter(versionFooter);
+
         auto add = [&](const std::wstring& title, const std::wstring& tag)
         {
             NavigationViewItem item;
@@ -661,7 +672,7 @@ namespace med
         outer.HorizontalAlignment(HorizontalAlignment::Stretch);
         if (headers.empty())
         {
-            outer.Children().Append(ui::Text(L"Keine Tabellenspalten erkannt.", 12, false));
+            outer.Children().Append(ui::Text(L"Keine Tabellenspalten erkannt.", 13, false));
             return outer;
         }
 
@@ -755,7 +766,7 @@ namespace med
             selectHeader.BorderThickness(Thickness{ 0,0,1,0 });
             selectHeader.Padding(Thickness{ 1,0,1,0 });
 
-            auto tick = ui::Text(L"✓", 11, true);
+            auto tick = ui::Text(L"✓", 12, true);
             tick.HorizontalAlignment(HorizontalAlignment::Center);
             tick.VerticalAlignment(VerticalAlignment::Center);
 
@@ -785,7 +796,9 @@ namespace med
             button.HorizontalAlignment(HorizontalAlignment::Stretch);
             button.HorizontalContentAlignment(HorizontalAlignment::Left);
             button.Padding(Thickness{ 8,2,8,2 });
-            button.MinHeight(27);
+            button.MinHeight(29);
+            button.FontSize(13.0);
+            button.FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
             button.Background(transparentBrush);
             button.BorderThickness(Thickness{ 0,0,0,0 });
             button.CornerRadius(CornerRadius{ 0,0,0,0 });
@@ -907,7 +920,7 @@ namespace med
                     0.0,
                     (c + 1 < headers.size()) ? 1.0 : 0.0,
                     1.0 });
-                cell.Padding(Thickness{ 8,3,8,3 });
+                cell.Padding(Thickness{ 8,4,8,4 });
 
                 if (selected)
                     cell.Background(selectedRowBackground);
@@ -990,13 +1003,13 @@ namespace med
 
         if (visible.size() > maxRows)
         {
-            auto note = ui::Text(L"… weitere gefilterte Zeilen sind vorhanden.", 11, false);
+            auto note = ui::Text(L"… weitere gefilterte Zeilen sind vorhanden.", 12, false);
             note.Margin(Thickness{ 6,4,6,4 });
             result.Children().Append(note);
         }
         if (visible.empty())
         {
-            auto note = ui::Text(L"Keine Zeilen entsprechen den aktuellen Filtern.", 11, false);
+            auto note = ui::Text(L"Keine Zeilen entsprechen den aktuellen Filtern.", 12, false);
             note.Margin(Thickness{ 6,6,6,6 });
             result.Children().Append(note);
         }
@@ -1356,7 +1369,7 @@ namespace med
             if (!date::Trim(study->euctNumber).empty()) studyMeta += L"   |   EUCT-No.: " + date::Trim(study->euctNumber);
             studyMeta += L"   |   " + std::to_wstring(study->imps.size()) + L" IMP";
             if (study->imps.size() != 1) studyMeta += L"s";
-            auto metaText = ui::Text(studyMeta, 12, false);
+            auto metaText = ui::Text(studyMeta, 13, false);
             metaText.Foreground(ui::Brush(95, 107, 125));
             studyLabels.Children().Append(metaText);
 
@@ -1380,13 +1393,7 @@ namespace med
             auto add = [&](const std::wstring& header, const FrameworkElement& content)
             {
                 TabViewItem item;
-                
-                TextBlock headerText;
-                headerText.Text(header);
-                headerText.FontSize(13.0);
-
-                item.Header(headerText);
-
+                item.Header(box_value(header));
                 item.IsClosable(false);
                 item.Content(content);
                 tabs.TabItems().Append(item);
@@ -1434,7 +1441,7 @@ namespace med
         StackPanel identity;
         identity.Spacing(8);
         identity.Children().Append(ui::Text(L"Studienstammdaten", 16, true));
-        identity.Children().Append(ui::Text(L"Programm-Identität (Ordnername): " + study.studyName + L"   |   Datei: " + study.excelPath.filename().wstring(), 11, false));
+        identity.Children().Append(ui::Text(L"Programm-Identität (Ordnername): " + study.studyName + L"   |   Datei: " + study.excelPath.filename().wstring(), 12, false));
         m_profileStudyNameInput = TextBox();
         m_profileStudyNameInput.Text(study.workbookStudyName);
         m_profileEuctInput = TextBox();
@@ -1462,7 +1469,7 @@ namespace med
         StackPanel profile;
         profile.Spacing(8);
         profile.Children().Append(ui::Text(L"IMP-Definitionen aus dem ersten Tabellenblatt", 16, true));
-        profile.Children().Append(ui::Text(L"Jede Zeile beschreibt eine Eigenschaft; IMP1, IMP2 usw. sind die verwalteten Produkte. Spalten können über das Symbol ▾ gefiltert und sortiert werden. Eine Zeile kann ausgewählt und darunter bearbeitet werden.", 11, false));
+        profile.Children().Append(ui::Text(L"Jede Zeile beschreibt eine Eigenschaft; IMP1, IMP2 usw. sind die verwalteten Produkte. Spalten können über das Symbol ▾ gefiltert und sortiert werden. Eine Zeile kann ausgewählt und darunter bearbeitet werden.", 12, false));
         const auto profileRows = DisplayRows(study.profileTable, 200);
         const auto profileKeys = DisplayRowKeys(study.profileTable, 200);
         const std::wstring profileKey = study.studyName + L"|profile";
@@ -1517,7 +1524,7 @@ namespace med
         StackPanel resolved;
         resolved.Spacing(8);
         resolved.Children().Append(ui::Text(L"Vom Programm aufgelöste IMP / Produkte", 16, true));
-        resolved.Children().Append(ui::Text(L"Diese Ansicht zeigt die tatsächlich verwendeten Zuordnungen – einschließlich automatisch ermittelter Kurzbezeichnungen wie Gilteritinib → GILT oder VENAZA → VEN.", 11, false));
+        resolved.Children().Append(ui::Text(L"Diese Ansicht zeigt die tatsächlich verwendeten Zuordnungen – einschließlich automatisch ermittelter Kurzbezeichnungen wie Gilteritinib → GILT oder VENAZA → VEN.", 12, false));
         std::vector<std::wstring> headers{ L"IMP-ID", L"IMP", L"Warenart", L"Form", L"Bestellpflicht", L"Minimum", L"Lieferzeit", L"Bestellspalte", L"Inventarfilter" };
         std::vector<std::vector<std::wstring>> rows;
         for (const auto& imp : study.imps)
@@ -1545,14 +1552,14 @@ namespace med
             warning.Background(ui::StatusBrush(1));
             warning.CornerRadius(CornerRadius{ 6,6,6,6 });
             warning.Padding(Thickness{ 10,8,10,8 });
-            warning.Child(ui::Text(study.loadWarning, 12, false));
+            warning.Child(ui::Text(study.loadWarning, 13, false));
             panel.Children().Append(warning);
         }
 
         StackPanel impCard;
         impCard.Spacing(8);
         impCard.Children().Append(ui::Text(L"Verwaltete IMP / Produkte – " + study.studyName, 17, true));
-        impCard.Children().Append(ui::Text(L"Die Produkteigenschaften werden aus der Studien-Excel gelesen. Nur als bestellpflichtig gekennzeichnete Studienware fließt in die Bestellpriorisierung ein.", 11, false));
+        impCard.Children().Append(ui::Text(L"Die Produkteigenschaften werden aus der Studien-Excel gelesen. Nur als bestellpflichtig gekennzeichnete Studienware fließt in die Bestellpriorisierung ein.", 12, false));
         std::vector<std::wstring> impHeaders{ L"IMP", L"Warenart", L"Applikationsform", L"Bestand", L"Minimum", L"Lieferzeit", L"Bestellfenster", L"Status" };
         std::vector<std::vector<std::wstring>> impRows;
         for (const auto& imp : study.imps)
@@ -1631,13 +1638,13 @@ namespace med
             if (++shown >= 8)
                 break;
         }
-        if (shown == 0) upcoming.Children().Append(ui::Text(L"Keine zukünftigen Visiten mit Datum hinterlegt.", 12, false));
+        if (shown == 0) upcoming.Children().Append(ui::Text(L"Keine zukünftigen Visiten mit Datum hinterlegt.", 13, false));
         auto upcomingCard = ui::Card(upcoming);
 
         auto docsCard = BuildDocumentQuickLinks(study, L"Bestellung");
         panel.Children().Append(MakeResponsiveTwoCardGrid(upcomingCard, docsCard));
 
-        auto forecastNote = ui::Text(L"Bestellfenster mit '(Prognose)' beruhen auf einem hinterlegten Prognoseintervall oder einem aus vorhandenen Terminen abgeleiteten typischen Abstand, wenn die terminierten Visiten noch nicht weit genug in die Zukunft reichen.", 11, false);
+        auto forecastNote = ui::Text(L"Bestellfenster mit '(Prognose)' beruhen auf einem hinterlegten Prognoseintervall oder einem aus vorhandenen Terminen abgeleiteten typischen Abstand, wenn die terminierten Visiten noch nicht weit genug in die Zukunft reichen.", 12, false);
         forecastNote.Foreground(ui::Brush(95, 107, 125));
         panel.Children().Append(forecastNote);
         return panel;
@@ -1668,7 +1675,7 @@ namespace med
             if (++count >= 8) break;
         }
         if (count == 0)
-            panel.Children().Append(ui::Text(L"Noch keine passenden Dokumente hinterlegt. Dateien, E-Mail-Vorlagen oder .url-Links können im Studienordner unter Documents abgelegt werden.", 12, false));
+            panel.Children().Append(ui::Text(L"Noch keine passenden Dokumente hinterlegt. Dateien, E-Mail-Vorlagen oder .url-Links können im Studienordner unter Documents abgelegt werden.", 13, false));
         return ui::Card(panel);
     }
 
@@ -1713,7 +1720,7 @@ namespace med
             L"   |   Applikationsform: " + (imp->applicationForm.empty() ? L"–" : imp->applicationForm), 12, false));
         meta.Children().Append(ui::Text(L"Bestellblatt: " + (imp->orderSheet.empty() ? L"–" : imp->orderSheet) +
             L"   |   Bestellspalte: " + (imp->orderQuantityHeader.empty() ? L"automatisch" : imp->orderQuantityHeader), 11, false));
-        if (!imp->orderProcess.empty()) meta.Children().Append(ui::Text(L"Bestellverfahren: " + imp->orderProcess, 11, false));
+        if (!imp->orderProcess.empty()) meta.Children().Append(ui::Text(L"Bestellverfahren: " + imp->orderProcess, 12, false));
         panel.Children().Append(ui::Card(meta));
 
         if (!imp->orderRequired)
@@ -1757,7 +1764,7 @@ namespace med
 
             if (sourceIndex < imp->orders.rows.size())
             {
-                auto rowInfo = ui::Text(L"Ausgewählte Excel-Zeile " + std::to_wstring(selectedRow), 12, false);
+                auto rowInfo = ui::Text(L"Ausgewählte Excel-Zeile " + std::to_wstring(selectedRow), 13, false);
                 rowInfo.Foreground(ui::Brush(95, 107, 125));
                 editor.Children().Append(rowInfo);
 
@@ -1842,7 +1849,7 @@ namespace med
         }
         else
         {
-            form.Children().Append(ui::Text(L"Für dieses IMP stehen aktuell keine Bestellspalten zur Eingabe zur Verfügung.", 12, false));
+            form.Children().Append(ui::Text(L"Für dieses IMP stehen aktuell keine Bestellspalten zur Eingabe zur Verfügung.", 13, false));
         }
         auto formCard = ui::Card(form);
 
@@ -1903,7 +1910,7 @@ namespace med
         status.Children().Append(ui::Text(L"Aktueller Bestand: " + date::CellToDisplay(CellValue::Number(imp->stock)) +
             L"   |   Warenart: " + (imp->goodsType.empty() ? L"–" : imp->goodsType) +
             L"   |   Applikationsform: " + (imp->applicationForm.empty() ? L"–" : imp->applicationForm), 12, false));
-        status.Children().Append(ui::Text(L"Inventarblatt: " + (imp->inventorySheet.empty() ? L"–" : imp->inventorySheet), 11, false));
+        status.Children().Append(ui::Text(L"Inventarblatt: " + (imp->inventorySheet.empty() ? L"–" : imp->inventorySheet), 12, false));
         panel.Children().Append(ui::Card(status));
 
         const std::wstring inventoryTableKey = study.studyName + L"|inventory|" + imp->id;
@@ -2187,7 +2194,7 @@ namespace med
             if (sourceIndex < imp->inventory.rows.size())
             {
                 editor.Children().Append(ui::Text(L"Inventardatensatz bearbeiten", 16, true));
-                auto rowInfo = ui::Text(L"Ausgewählte Excel-Zeile " + std::to_wstring(selectedRow), 12, false);
+                auto rowInfo = ui::Text(L"Ausgewählte Excel-Zeile " + std::to_wstring(selectedRow), 13, false);
                 rowInfo.Foreground(ui::Brush(95, 107, 125));
                 editor.Children().Append(rowInfo);
 
@@ -2451,7 +2458,7 @@ namespace med
         card.Children().Append(ui::Text(L"Erkannte Inventardatensätze für dieses IMP: " + std::to_wstring(reportRows) +
             L"   |   Inventarfilter: " + (imp->inventoryImpHeader.empty() ? L"keiner" : imp->inventoryImpHeader + L" = " + imp->inventoryImpValue), 11, false));
 
-        auto exportInfo = ui::Text(L"Exportziel: " + ReportRoot(study).wstring(), 11, false);
+        auto exportInfo = ui::Text(L"Exportziel: " + ReportRoot(study).wstring(), 12, false);
         exportInfo.Foreground(ui::Brush(95, 107, 125));
         card.Children().Append(exportInfo);
 
@@ -2580,8 +2587,8 @@ namespace med
             ColumnDefinition c2; c2.Width(GridLength{ 1, GridUnitType::Star });
             ColumnDefinition c3; c3.Width(GridLength{ 0, GridUnitType::Auto });
             row.ColumnDefinitions().Append(c1); row.ColumnDefinitions().Append(c2); row.ColumnDefinitions().Append(c3);
-            auto cat = ui::Text(doc.category, 12, true); cat.VerticalAlignment(VerticalAlignment::Center); row.Children().Append(cat);
-            auto title = ui::Text(doc.title + L"   (" + doc.path.extension().wstring() + L")", 12, false); title.VerticalAlignment(VerticalAlignment::Center); Grid::SetColumn(title, 1); row.Children().Append(title);
+            auto cat = ui::Text(doc.category, 13, true); cat.VerticalAlignment(VerticalAlignment::Center); row.Children().Append(cat);
+            auto title = ui::Text(doc.title + L"   (" + doc.path.extension().wstring() + L")", 13, false); title.VerticalAlignment(VerticalAlignment::Center); Grid::SetColumn(title, 1); row.Children().Append(title);
             auto open = MakeButton(L"Öffnen"); auto path = doc.path; open.Click([this, path](auto&&, auto&&) { OpenPath(path); }); Grid::SetColumn(open, 2); row.Children().Append(open);
             panel.Children().Append(ui::Card(row, 8));
         }
@@ -2618,7 +2625,7 @@ namespace med
 
         StackPanel explanation; explanation.Spacing(4);
         explanation.Children().Append(ui::Text(L"Was wird hier angezeigt?", 15, true));
-        explanation.Children().Append(ui::Text(L"IMPs = alle im Studienprofil bzw. in der Legacy-Datei erkannten Produkte. 'Bestellpflichtig' zählt nur Produkte, für die das Programm eine Studienbestellung planen soll. Handelsware kann deshalb als IMP dokumentiert werden, ohne in diese Zahl einzugehen.", 11, false));
+        explanation.Children().Append(ui::Text(L"IMPs = alle im Studienprofil bzw. in der Legacy-Datei erkannten Produkte. 'Bestellpflichtig' zählt nur Produkte, für die das Programm eine Studienbestellung planen soll. Handelsware kann deshalb als IMP dokumentiert werden, ohne in diese Zahl einzugehen.", 12, false));
         page.Children().Append(ui::Card(explanation));
 
         std::vector<std::wstring> headers{ L"Studie", L"IMPs", L"Bestellpflichtig", L"Patienten", L"Arbeitsmappe", L"Datenmodell", L"Hinweis" };
@@ -2713,7 +2720,7 @@ namespace med
             }
         });
         Grid::SetColumn(selector, 1); selectorRow.Children().Append(selector);
-        auto info = ui::Text(CurrentStudy() ? CurrentStudy()->excelPath.filename().wstring() : L"", 11, false); info.VerticalAlignment(VerticalAlignment::Center); info.Margin(Thickness{ 12,0,8,0 }); Grid::SetColumn(info, 2); selectorRow.Children().Append(info);
+        auto info = ui::Text(CurrentStudy() ? CurrentStudy()->excelPath.filename().wstring() : L"", 12, false); info.VerticalAlignment(VerticalAlignment::Center); info.Margin(Thickness{ 12,0,8,0 }); Grid::SetColumn(info, 2); selectorRow.Children().Append(info);
         auto openFolder = MakeButton(L"Dokumentenordner öffnen");
         openFolder.Click([this](auto&&, auto&&) { if (auto s = CurrentStudy()) { auto path = s->studyDirectory / L"Documents"; std::filesystem::create_directories(path); OpenPath(path); } });
         Grid::SetColumn(openFolder, 3); selectorRow.Children().Append(openFolder);
@@ -2731,7 +2738,7 @@ namespace med
 
         StackPanel card; card.Spacing(8);
         card.Children().Append(ui::Text(L"Studien-Datenordner", 17, true));
-        card.Children().Append(ui::Text(L"In diesem Ordner liegt pro Studie ein eigener Unterordner. Der Unterordnername ist die eindeutige Studienidentität im Programm.", 12, false));
+        card.Children().Append(ui::Text(L"In diesem Ordner liegt pro Studie ein eigener Unterordner. Der Unterordnername ist die eindeutige Studienidentität im Programm.", 13, false));
         m_settingsFolderInput = TextBox(); m_settingsFolderInput.Text(m_settings.studyFolder.wstring());
         card.Children().Append(ui::LabeledField(L"Aktiver Studien-Datenordner", m_settingsFolderInput));
 
@@ -2761,16 +2768,16 @@ namespace med
         });
         buttons.Children().Append(save);
         card.Children().Append(buttons);
-        card.Children().Append(ui::Text(L"Nur Excel-Dateien direkt im jeweiligen Studien-Unterordner werden als Studien-Arbeitsmappe betrachtet. Documents, Backups und Berichtsvorlagen dürfen weitere Excel-Dateien enthalten.", 11, false));
+        card.Children().Append(ui::Text(L"Nur Excel-Dateien direkt im jeweiligen Studien-Unterordner werden als Studien-Arbeitsmappe betrachtet. Documents, Backups und Berichtsvorlagen dürfen weitere Excel-Dateien enthalten.", 12, false));
         page.Children().Append(ui::Card(card));
 
         StackPanel exports; exports.Spacing(9);
         exports.Children().Append(ui::Text(L"Exportpfade je Studie", 17, true));
-        exports.Children().Append(ui::Text(L"Ohne eigene Einstellung werden Excel-Exporte direkt im jeweiligen Studien-Datenordner gespeichert. Hier kannst du für einzelne Studien einen abweichenden Ablageordner festlegen.", 12, false));
+        exports.Children().Append(ui::Text(L"Ohne eigene Einstellung werden Excel-Exporte direkt im jeweiligen Studien-Datenordner gespeichert. Hier kannst du für einzelne Studien einen abweichenden Ablageordner festlegen.", 13, false));
         m_exportFolderInputs.clear();
         if (m_studies.empty())
         {
-            exports.Children().Append(ui::Text(L"Noch keine Studien geladen.", 12, false));
+            exports.Children().Append(ui::Text(L"Noch keine Studien geladen.", 13, false));
         }
         for (const auto& study : m_studies)
         {
@@ -2781,7 +2788,7 @@ namespace med
             row.ColumnDefinitions().Append(r1); row.ColumnDefinitions().Append(r2); row.ColumnDefinitions().Append(r3);
             std::wstring labelText = study.studyName;
             if (!date::Trim(study.euctNumber).empty()) labelText += L" [" + date::Trim(study.euctNumber) + L"]";
-            auto studyLabel = ui::Text(labelText, 12, true); studyLabel.VerticalAlignment(VerticalAlignment::Center); row.Children().Append(studyLabel);
+            auto studyLabel = ui::Text(labelText, 13, true); studyLabel.VerticalAlignment(VerticalAlignment::Center); row.Children().Append(studyLabel);
 
             TextBox input;
             input.Text(m_settings.ExportFolderForStudy(study.studyName, study.studyDirectory).wstring());
@@ -2852,12 +2859,40 @@ namespace med
             });
             exports.Children().Append(saveExports);
         }
-        exports.Children().Append(ui::Text(L"Die studienübergreifende CSV-Übersicht wird unter <Studien-Datenordner>\\Exporte gespeichert.", 11, false));
+        exports.Children().Append(ui::Text(L"Die studienübergreifende CSV-Übersicht wird unter <Studien-Datenordner>\\Exporte gespeichert.", 12, false));
         page.Children().Append(ui::Card(exports));
+
+        // AuditLog ist absichtlich nicht abschaltbar. Pro lokalem Windows-
+        // Benutzerprofil und PC wird eine monatliche CSV-Datei geführt.
+        StackPanel audit; audit.Spacing(7);
+        audit.Children().Append(ui::Text(L"AuditLog", 17, true));
+        audit.Children().Append(ui::Text(
+            L"Fachliche Änderungen und DrugAccount-Exporte werden automatisch protokolliert. Das AuditLog kann in der Anwendung nicht deaktiviert werden.",
+            13, false));
+        audit.Children().Append(ui::Text(
+            std::wstring(L"Lokaler Speicherort: ") + AuditLogger::AuditDirectory().wstring(),
+            12, false));
+        audit.Children().Append(ui::Text(
+            L"Die Einträge enthalten UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, IMP, Excel-Zeile sowie alten und neuen Wert.",
+            12, false));
+
+        auto openAudit = MakeButton(L"AuditLog-Ordner öffnen");
+        openAudit.HorizontalAlignment(HorizontalAlignment::Left);
+        openAudit.Click([this](auto&&, auto&&)
+        {
+            try
+            {
+                std::filesystem::create_directories(AuditLogger::AuditDirectory());
+                OpenPath(AuditLogger::AuditDirectory());
+            }
+            catch (const std::exception& e) { ShowError(e); }
+        });
+        audit.Children().Append(openAudit);
+        page.Children().Append(ui::Card(audit));
 
         StackPanel technical; technical.Spacing(5);
         technical.Children().Append(ui::Text(L"Technischer Hinweis", 15, true));
-        technical.Children().Append(ui::Text(L"Für direktes Lesen, Schreiben und die Erstellung der Excel-Berichte wird die installierte Microsoft-Excel-Desktopanwendung über COM verwendet. Vor Änderungen an einer Studien-Excel wird weiterhin automatisch eine Sicherungskopie angelegt.", 11, false));
+        technical.Children().Append(ui::Text(L"Für direktes Lesen, Schreiben und die Erstellung der Excel-Berichte wird die installierte Microsoft-Excel-Desktopanwendung über COM verwendet. Vor Änderungen an einer Studien-Excel wird weiterhin automatisch eine Sicherungskopie angelegt. Das lokale AuditLog ergänzt diese Sicherung um eine nachvollziehbare Änderungsdokumentation.", 12, false));
         page.Children().Append(ui::Card(technical));
 
         scroll.Content(page); m_navigation.Content(scroll); m_rendering = false;

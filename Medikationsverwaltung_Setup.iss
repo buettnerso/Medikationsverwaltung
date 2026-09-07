@@ -12,7 +12,7 @@
 ; ============================================================================
 
 #define MyAppName "Medikationsverwaltung"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Medikationsverwaltung"
 #define MyAppExeName "Medikationsverwaltung.exe"
 #define MyAppSourceDir "x64\Release\Medikationsverwaltung"

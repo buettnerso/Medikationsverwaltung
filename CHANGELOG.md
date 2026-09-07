@@ -7,7 +7,48 @@ Einige Funktionen wurden in späteren Versionen erneut angepasst oder ersetzt. I
 
 \---
 
-# \[v8.13] Medikationsverwaltung 
+
+
+# \[v8.15] – AuditLog und Versionsanzeige
+
+## AuditLog
+
+* Neue zentrale Komponenten `AuditLogger.h` und `AuditLogger.cpp`.
+* Fachliche Änderungen werden automatisch in einer lokalen monatlichen CSV-Datei protokolliert.
+* Speicherort: `%LOCALAPPDATA%\\\\\\\\Medikationsverwaltung\\\\\\\\Audit`.
+* Der Rechnername ist Bestandteil des Dateinamens.
+* Jeder Eintrag enthält u. a. UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, EUCT-No., IMP, Blatt, Excel-Zeile sowie alten und neuen Wert.
+* Das AuditLog kann in der GUI nicht deaktiviert werden.
+* Vor schreibenden Änderungen wird geprüft, ob der Audit-Speicher beschreibbar ist. Ist dies nicht möglich, wird die Änderung abgebrochen.
+* Batch-Wareneingänge verwenden eine gemeinsame `OperationId` für zusammengehörige Inventarzeilen.
+* DrugAccount-Exporte werden ebenfalls protokolliert.
+
+## GUI
+
+* Neue kleine Versionsanzeige in der Fußzeile der linken Navigation.
+* Neue AuditLog-Karte unter **Einstellungen** mit Anzeige des Speicherortes und Button **„AuditLog-Ordner öffnen“**.
+
+## Versionierung
+
+* Neue zentrale Datei `AppVersion.h`.
+* Aktuelle Produktversion: `1.1.0`.
+* Die Versionsnummer wird sowohl in der GUI als auch im AuditLog verwendet.
+
+## Hinweis zur Revisionssicherheit
+
+Die lokale CSV-Lösung verbessert die Nachvollziehbarkeit erheblich, ist jedoch noch kein manipulationsgeschützter regulatorischer Audit Trail. Für einen revisionssicheren Produktivbetrieb wären zentraler geschützter Speicher, restriktive Berechtigungen und ggf. kryptografischer Manipulationsschutz erforderlich.
+
+
+
+
+
+
+
+
+
+
+
+# \[v8.13] Medikationsverwaltung
 
 ## Tabellenoptik
 
@@ -55,8 +96,8 @@ Weitere Metadaten werden in dieser kompakten Übersicht nicht mehr angehängt.
 ### Geändert
 
 * Das App-Icon ist nicht mehr von einer zur Laufzeit kopierten `.ico`-Datei abhängig.
-* `Medikationsverwaltung\_AppIcon.ico` wird über `AppIcon.rc` direkt in die ausführbare Datei eingebettet.
-* Das Fenster erhält das Icon zusätzlich über `WM\_SETICON` für große und kleine Darstellung.
+* `Medikationsverwaltung\\\\\\\_AppIcon.ico` wird über `AppIcon.rc` direkt in die ausführbare Datei eingebettet.
+* Das Fenster erhält das Icon zusätzlich über `WM\\\\\\\_SETICON` für große und kleine Darstellung.
 
 ### Ergebnis
 
@@ -135,7 +176,7 @@ Weitere Metadaten werden in dieser kompakten Übersicht nicht mehr angehängt.
 
 ### Behoben
 
-* Datumswerte werden beim Schreiben an Excel als echter COM-Datentyp `VT\_DATE` über `Range.Value` übergeben.
+* Datumswerte werden beim Schreiben an Excel als echter COM-Datentyp `VT\\\\\\\_DATE` über `Range.Value` übergeben.
 * Dadurch werden fehlerhafte kleine Zahlenwerte in Datumsfeldern vermieden.
 * Die lokale Datumsdarstellung bleibt:
 
@@ -156,7 +197,7 @@ Weitere Metadaten werden in dieser kompakten Übersicht nicht mehr angehängt.
 * Datenzeilen erhielten etwas weniger vertikales Padding.
 * Die Schriftgröße der Tabelleninhalte blieb unverändert.
 
-> \*\*Später geändert:\*\* Die reduzierte Tabellenhöhe wurde in v8.9 wieder zurückgenommen.
+> \\\\\\\*\\\\\\\*Später geändert:\\\\\\\*\\\\\\\* Die reduzierte Tabellenhöhe wurde in v8.9 wieder zurückgenommen.
 
 \---
 
@@ -356,8 +397,8 @@ Zusätzliche unterstützte Bezeichnungen:
 * Die PDF-Erstellung für DrugAccount wurde vollständig aus dem Workflow entfernt.
 * Es gibt zwei getrennte Excel-Berichtstypen:
 
-  * `DrugAccount\_Gesamt.xlsx` – alle Datensätze eines IMP
-  * `DrugAccount\_Patient.xlsx` – ein IMP und ein ausgewählter Patient
+  * `DrugAccount\\\\\\\_Gesamt.xlsx` – alle Datensätze eines IMP
+  * `DrugAccount\\\\\\\_Patient.xlsx` – ein IMP und ein ausgewählter Patient
 * Jeder Bericht wird unmittelbar vor dem Export aus dem aktuellen `DrugInventory` neu erzeugt.
 * Die erzeugte Excel-Datei wird nach dem Export direkt geöffnet.
 
@@ -417,12 +458,12 @@ Der Patientenbericht enthält zusätzlich:
 
 Globale Standardvorlagen:
 
-* `Templates\\DrugAccount\_Gesamt.xlsx`
-* `Templates\\DrugAccount\_Patient.xlsx`
+* `Templates\\\\\\\\DrugAccount\\\\\\\_Gesamt.xlsx`
+* `Templates\\\\\\\\DrugAccount\\\\\\\_Patient.xlsx`
 
 Studienspezifische Overrides können unter folgendem Pfad mit identischen Dateinamen abgelegt werden:
 
-* `Documents\\DrugAccount`
+* `Documents\\\\\\\\DrugAccount`
 
 \---
 
@@ -466,10 +507,10 @@ Der Patientenbericht wurde auf ein verbindliches Schema mit elf Spalten umgestel
 
 ### Vorlage
 
-* `Templates/Bericht\_DrugAccount.xlsx` wurde auf das damalige Patientenberichtsschema aktualisiert.
+* `Templates/Bericht\\\\\\\_DrugAccount.xlsx` wurde auf das damalige Patientenberichtsschema aktualisiert.
 * `Tabelle1` für den Gesamtbericht blieb unverändert.
 
-> \*\*Später geändert:\*\* In v8.2 wurde der PDF-Workflow vollständig entfernt und die Berichtserzeugung auf zwei getrennte Excel-Vorlagen umgestellt.
+> \\\\\\\*\\\\\\\*Später geändert:\\\\\\\*\\\\\\\* In v8.2 wurde der PDF-Workflow vollständig entfernt und die Berichtserzeugung auf zwei getrennte Excel-Vorlagen umgestellt.
 
 \---
 
@@ -536,7 +577,7 @@ Drei Arbeitsbereiche stehen nebeneinander:
 * Der Button **„Vorlage für erstes Tabellenblatt öffnen“** wurde aus den Einstellungen entfernt.
 * Die studienübergreifende CSV-Übersicht wird unter folgendem Pfad gespeichert:
 
-  * `<Studien-Datenordner>\\Exporte`
+  * `<Studien-Datenordner>\\\\\\\\Exporte`
 
 \---
 
@@ -548,7 +589,7 @@ Drei Arbeitsbereiche stehen nebeneinander:
 |**v8.10**|Absturz bei gemeinsamer Box-/Kit-Kennzeichnung behoben|
 |**v8.9**|Tabellenbreiten und Scrollpositionen stabilisiert|
 |**v8.8**|Responsive Tabellenbreite|
-|**v8.7**|`VT\_DATE`, fixe Tabellenköpfe|
+|**v8.7**|`VT\\\\\\\_DATE`, fixe Tabellenköpfe|
 |**v8.6**|Performanceoptimierung und robuste Mehrzeileneingabe|
 |**v8.5**|Offene Bestellungen eindeutig über `Erhalten am`|
 |**v8.4**|Batch-Wareneingang und freie Box-/Kit-IDs|

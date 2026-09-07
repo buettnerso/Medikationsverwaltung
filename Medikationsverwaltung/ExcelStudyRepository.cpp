@@ -1,19 +1,8 @@
-// ============================================================================
-// Datei: ExcelStudyRepository.cpp
-// Zweck: Implementiert die Abbildung zwischen frei bearbeitbaren Studien-Exceldateien und dem internen Studienmodell.
-//
-// Verantwortlichkeiten:
-// - Erkennt Studienprofil, IMPs, Bestell- und Inventarspalten dynamisch.
-// - Unterstützt Legacy-Ein-IMP-Dateien und neue Multi-IMP-Studien.
-// - Bündelt sämtliche schreibenden Excel-Operationen inklusive Backup und Konfliktprüfung.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "pch.h"
 #include "ExcelStudyRepository.h"
 
 #include "DateUtils.h"
+#include "AuditLogger.h"
 #include "ExcelCom.h"
 #include "OrderPlanner.h"
 #include "Settings.h"
@@ -27,11 +16,6 @@
 
 namespace
 {
-    // -------------------------------------------------------------------------
-    // Schemaerkennung und allgemeine Konvertierungshilfen
-    // -------------------------------------------------------------------------
-    // Da Studien weiterhin direkt in Excel bearbeitet werden dürfen, ist das
-    // Repository tolerant gegenüber zusätzlichen Spalten und leicht variierenden Namen.
     bool IsXlsx(const std::filesystem::path& path)
     {
         auto ext = path.extension().wstring();
@@ -107,6 +91,78 @@ namespace
         return buffer;
     }
 
+    const std::vector<med::CellValue>* FindSourceRow(const med::SheetTable& table, int excelRow)
+    {
+        for (size_t i = 0; i < table.rows.size(); ++i)
+        {
+            const int sourceRow = i < table.rowNumbers.size()
+                ? table.rowNumbers[i]
+                : table.firstRow + 1 + static_cast<int>(i);
+            if (sourceRow == excelRow) return &table.rows[i];
+        }
+        return nullptr;
+    }
+
+    std::wstring NormalizeAuditInput(const std::wstring& header, const std::wstring& value)
+    {
+        const auto trimmed = med::date::Trim(value);
+        if (trimmed.empty()) return L"";
+
+        if (med::date::HeaderLooksLikeDate(header))
+        {
+            if (const auto parsed = med::date::ParseGermanDate(trimmed))
+                return med::date::FormatGermanDate(*parsed);
+        }
+        return trimmed;
+    }
+
+    std::vector<med::AuditChange> BuildAuditChanges(
+        const med::SheetTable& table,
+        int excelRow,
+        const std::map<std::wstring, std::wstring>& values)
+    {
+        std::vector<med::AuditChange> changes;
+        const auto* oldRow = FindSourceRow(table, excelRow);
+
+        for (size_t c = 0; c < table.headers.size(); ++c)
+        {
+            const auto& header = table.headers[c];
+            const auto valueIt = values.find(header);
+            if (valueIt == values.end()) continue;
+
+            const std::wstring oldValue =
+                oldRow && c < oldRow->size()
+                ? med::date::Trim(ToText((*oldRow)[c], header))
+                : L"";
+            const std::wstring newValue = NormalizeAuditInput(header, valueIt->second);
+
+            if (oldValue != newValue)
+                changes.push_back({ header, oldValue, newValue });
+        }
+        return changes;
+    }
+
+    void WriteAudit(
+        const med::StudyData& study,
+        const med::ImpData* imp,
+        const std::wstring& action,
+        const std::wstring& sheet,
+        int excelRow,
+        std::vector<med::AuditChange> changes,
+        const std::wstring& operationId = L"",
+        const std::wstring& details = L"")
+    {
+        med::AuditEntry entry;
+        entry.operationId = operationId;
+        entry.imp = imp ? imp->name : L"";
+        entry.action = action;
+        entry.sheet = sheet;
+        entry.excelRow = excelRow;
+        entry.details = details;
+        entry.changes = std::move(changes);
+        med::AuditLogger::Write(study, entry);
+    }
+
     bool AnyNonEmpty(const std::vector<med::CellValue>& row)
     {
         return std::any_of(row.begin(), row.end(), [](const med::CellValue& c) { return !c.IsEmpty(); });
@@ -133,11 +189,6 @@ namespace
         return c >= 0 && static_cast<size_t>(c) < row.size() ? ToBool(row[static_cast<size_t>(c)], fallback) : fallback;
     }
 
-    // -------------------------------------------------------------------------
-    // Studienprofil erkennen
-    // -------------------------------------------------------------------------
-    // Es werden zwei Layouts unterstützt: IMPs als Zeilen oder IMPs als Spalten.
-    // Dadurch bleiben ältere und neuere Studienvorlagen parallel verwendbar.
     bool LooksLikeRowStudyProfile(const med::SheetTable& table)
     {
         return FindHeaderLike(table, { L"IMP-Name", L"IMP Name", L"Medikament", L"Prüfpräparat" }) >= 0 &&
@@ -228,11 +279,6 @@ namespace
         return score;
     }
 
-    // -------------------------------------------------------------------------
-    // IMP-spezifische Spaltenzuordnung ableiten
-    // -------------------------------------------------------------------------
-    // Fehlt eine explizite Zuordnung im Studienprofil, bewertet die Heuristik Namen
-    // und vorhandene Spalten, ohne die Excel-Struktur selbst zu verändern.
     std::wstring InferOrderHeader(const med::SheetTable& table, const std::wstring& impName)
     {
         int best = -1;
@@ -419,11 +465,6 @@ namespace med
         return L"B" + std::to_wstring(maxBatch + 1);
     }
 
-    // -------------------------------------------------------------------------
-    // Patienten- und Visitenmodell aus dem Matrixblatt aufbauen
-    // -------------------------------------------------------------------------
-    // Excel-Zeilennummern und -Spaltennummern werden mitgeführt, damit spätere
-    // Änderungen trotz GUI-Sortierung exakt zurückgeschrieben werden können.
     void ExcelStudyRepository::LoadVisitModel(StudyData& study)
     {
         study.patientIds.clear();
@@ -507,8 +548,6 @@ namespace med
         }
     }
 
-    /// Liest den Documents-Unterordner rekursiv ein und erzeugt nur Metadaten;
-    /// die eigentlichen Dateien werden erst beim Öffnen durch Windows gestartet.
     void ExcelStudyRepository::LoadDocuments(StudyData& study)
     {
         study.documents.clear();
@@ -531,11 +570,6 @@ namespace med
         });
     }
 
-    // -------------------------------------------------------------------------
-    // Abgeleitete IMP-Zustände
-    // -------------------------------------------------------------------------
-    // Offene Bestellung: "Erhalten am" ist leer. Bestand: vorhandene, noch nicht
-    // ausgegebene Inventareinheiten. Beide Werte fließen anschließend in OrderPlanner.
     void ExcelStudyRepository::DetectPendingOrder(StudyData&, ImpData& imp)
     {
         imp.pendingOrder = false;
@@ -636,19 +670,12 @@ namespace med
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Eine einzelne Studie laden
-    // -------------------------------------------------------------------------
-    // Öffentliche Kurzform mit eigener Excel.Application. LoadAll nutzt dagegen
-    // LoadOneWithApplication, um dieselbe Excel-Instanz für mehrere Studien zu teilen.
     StudyData ExcelStudyRepository::LoadOne(const std::filesystem::path& excelPath) const
     {
         excel::Application excel;
         return LoadOneWithApplication(excelPath, excel);
     }
 
-    /// Wandelt eine einzelne Arbeitsmappe in StudyData um: Konfiguration, Profil,
-    /// IMPs, Tabellen, Visiten, Dokumente und anschließend die Bestellplanung.
     StudyData ExcelStudyRepository::LoadOneWithApplication(const std::filesystem::path& excelPath, excel::Application& excel) const
     {
         StudyData study;
@@ -919,11 +946,6 @@ namespace med
         return study;
     }
 
-    // -------------------------------------------------------------------------
-    // Gesamten Studien-Datenordner laden
-    // -------------------------------------------------------------------------
-    // Jeder direkte Unterordner gilt als Studie. Bevorzugt wird Workbook aus der
-    // Konfiguration; sonst wird eine passende .xlsx direkt im Studienordner gesucht.
     std::vector<StudyData> ExcelStudyRepository::LoadAll(const std::filesystem::path& studyFolder) const
     {
         std::vector<StudyData> studies;
@@ -984,11 +1006,6 @@ namespace med
         return studies;
     }
 
-    // -------------------------------------------------------------------------
-    // Schreibschutz, Konflikterkennung und Sicherung
-    // -------------------------------------------------------------------------
-    // Die Datei darf seit dem Einlesen nicht extern verändert worden sein. Erst nach
-    // erfolgreicher Prüfung wird eine Backup-Kopie erzeugt und schreibend geöffnet.
     void ExcelStudyRepository::CheckUnchanged(const StudyData& study)
     {
         if (!std::filesystem::exists(study.excelPath)) throw std::runtime_error("Die Studien-Excel wurde verschoben oder gelöscht.");
@@ -1030,25 +1047,35 @@ namespace med
     void ExcelStudyRepository::UpdateOrderRow(const StudyData& study, const ImpData& imp, int excelRow,
         const std::map<std::wstring, std::wstring>& values) const
     {
+        const auto changes = BuildAuditChanges(imp.orders, excelRow, values);
+        AuditLogger::EnsureWritable();
         UpdateSheetRow(study, imp.orders, excelRow, values);
+        WriteAudit(study, &imp, L"ORDER_UPDATE", imp.orders.sheetName, excelRow, changes);
     }
 
     void ExcelStudyRepository::UpdateInventoryRow(const StudyData& study, const ImpData& imp, int excelRow,
         const std::map<std::wstring, std::wstring>& values) const
     {
+        const auto changes = BuildAuditChanges(imp.inventory, excelRow, values);
+        AuditLogger::EnsureWritable();
         UpdateSheetRow(study, imp.inventory, excelRow, values);
+        WriteAudit(study, &imp, L"INVENTORY_UPDATE", imp.inventory.sheetName, excelRow, changes);
     }
 
     void ExcelStudyRepository::UpdateProfileRow(const StudyData& study, int excelRow,
         const std::map<std::wstring, std::wstring>& values) const
     {
+        const auto changes = BuildAuditChanges(study.profileTable, excelRow, values);
+        AuditLogger::EnsureWritable();
         UpdateSheetRow(study, study.profileTable, excelRow, values);
+        WriteAudit(study, nullptr, L"PROFILE_UPDATE", study.profileTable.sheetName, excelRow, changes);
     }
 
     void ExcelStudyRepository::UpdateProfileMetadata(const StudyData& study, const std::wstring& studyName,
         const std::wstring& euctNumber) const
     {
         if (study.profileTable.sheetName.empty()) throw std::runtime_error("Es wurde kein Studienprofil als erstes Tabellenblatt erkannt.");
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1063,19 +1090,27 @@ namespace med
             if (label.find(L"studienbezeichnung") != std::wstring::npos || label == L"studie" || label == L"study") studyRow = r;
             if (label.find(L"euct") != std::wstring::npos) euctRow = r;
         }
-        workbook.SetCell(study.profileTable.sheetName, studyRow, 2, CellValue::Text(date::Trim(studyName)));
-        workbook.SetCell(study.profileTable.sheetName, euctRow, 2, CellValue::Text(date::Trim(euctNumber)));
+        const auto oldStudyName = date::Trim(ToText(workbook.GetCell(study.profileTable.sheetName, studyRow, 2)));
+        const auto oldEuctNumber = date::Trim(ToText(workbook.GetCell(study.profileTable.sheetName, euctRow, 2)));
+        const auto newStudyName = date::Trim(studyName);
+        const auto newEuctNumber = date::Trim(euctNumber);
+
+        workbook.SetCell(study.profileTable.sheetName, studyRow, 2, CellValue::Text(newStudyName));
+        workbook.SetCell(study.profileTable.sheetName, euctRow, 2, CellValue::Text(newEuctNumber));
         workbook.Save();
         workbook.Close(false);
+
+        std::vector<AuditChange> changes;
+        if (oldStudyName != newStudyName) changes.push_back({ L"Studienbezeichnung", oldStudyName, newStudyName });
+        if (oldEuctNumber != newEuctNumber) changes.push_back({ L"EUCT-No.", oldEuctNumber, newEuctNumber });
+        WriteAudit(study, nullptr, L"STUDY_METADATA_UPDATE", study.profileTable.sheetName, 0, std::move(changes));
     }
 
-    // -------------------------------------------------------------------------
-    // Bestellungen schreiben
-    // -------------------------------------------------------------------------
     void ExcelStudyRepository::AppendOrder(const StudyData& study, const ImpData& imp, const std::map<std::wstring, std::wstring>& values) const
     {
         if (!imp.orderRequired) throw std::runtime_error("Dieses Produkt ist als nicht bestellpflichtig gekennzeichnet.");
         if (imp.orders.headers.empty() || imp.orderSheet.empty()) throw std::runtime_error("Für dieses IMP wurde kein lesbares Bestellblatt gefunden.");
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1084,6 +1119,8 @@ namespace med
 
         const int dataIndex = LastNonEmptyDataRow(imp.orders) + 1;
         const int excelRow = imp.orders.firstRow + 1 + dataIndex;
+        const auto operationId = AuditLogger::NewOperationId();
+        std::vector<AuditChange> auditChanges;
         for (size_t c = 0; c < imp.orders.headers.size(); ++c)
         {
             const auto& header = imp.orders.headers[c];
@@ -1099,9 +1136,12 @@ namespace med
                 value = InputToCell(header, it == values.end() ? L"" : it->second, imp.orders, static_cast<int>(c));
             }
             workbook.SetCell(imp.orderSheet, excelRow, imp.orders.firstColumn + static_cast<int>(c), value, date::HeaderLooksLikeDate(header));
+            const auto auditValue = date::Trim(ToText(value, header));
+            if (!auditValue.empty()) auditChanges.push_back({ header, L"", auditValue });
         }
         workbook.Save();
         workbook.Close(false);
+        WriteAudit(study, &imp, L"ORDER_CREATE", imp.orderSheet, excelRow, std::move(auditChanges), operationId);
     }
 
     void ExcelStudyRepository::AppendOrder(const StudyData& study, const std::map<std::wstring, std::wstring>& values) const
@@ -1110,12 +1150,10 @@ namespace med
         AppendOrder(study, study.imps.front(), values);
     }
 
-    // -------------------------------------------------------------------------
-    // Inventar und Wareneingänge schreiben
-    // -------------------------------------------------------------------------
     void ExcelStudyRepository::AppendInventoryRow(const StudyData& study, const ImpData& imp, const std::map<std::wstring, std::wstring>& values) const
     {
         if (imp.inventory.headers.empty() || imp.inventorySheet.empty()) throw std::runtime_error("Für dieses IMP wurde kein lesbares Inventarblatt gefunden.");
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1127,6 +1165,8 @@ namespace med
         auto complete = workbook.ReadSheet(imp.inventorySheet);
         const int dataIndex = LastNonEmptyDataRow(complete) + 1;
         const int excelRow = complete.firstRow + 1 + dataIndex;
+        const auto operationId = AuditLogger::NewOperationId();
+        std::vector<AuditChange> auditChanges;
         for (size_t c = 0; c < complete.headers.size(); ++c)
         {
             const auto& header = complete.headers[c];
@@ -1140,9 +1180,12 @@ namespace med
             }
             const auto value = InputToCell(header, text, complete, static_cast<int>(c));
             workbook.SetCell(imp.inventorySheet, excelRow, complete.firstColumn + static_cast<int>(c), value, date::HeaderLooksLikeDate(header));
+            const auto auditValue = date::Trim(ToText(value, header));
+            if (!auditValue.empty()) auditChanges.push_back({ header, L"", auditValue });
         }
         workbook.Save();
         workbook.Close(false);
+        WriteAudit(study, &imp, L"INVENTORY_CREATE", imp.inventorySheet, excelRow, std::move(auditChanges), operationId);
     }
 
     void ExcelStudyRepository::AppendInventoryRow(const StudyData& study, const std::map<std::wstring, std::wstring>& values) const
@@ -1175,6 +1218,7 @@ namespace med
             identifiers.push_back(value);
         }
 
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1191,6 +1235,8 @@ namespace med
         if (deliveryCol < 0 || chargeCol < 0 || vialCol < 0 || expiryCol < 0)
             throw std::runtime_error("Für die Wareneingangserfassung fehlen benötigte Inventarspalten (Lieferdatum, Charge, Box-/Kit-Nr. und Verfall).");
 
+        const auto operationId = AuditLogger::NewOperationId();
+        std::vector<std::pair<int, std::vector<AuditChange>>> createdRows;
         int nextData = LastNonEmptyDataRow(complete) + 1;
         for (const auto& identifier : identifiers)
         {
@@ -1219,9 +1265,26 @@ namespace med
                     imp.inventorySheet, excelRow, complete.firstColumn + impFilterCol,
                     CellValue::Text(imp.inventoryImpValue.empty() ? imp.name : imp.inventoryImpValue), false);
             }
+
+            std::vector<AuditChange> rowChanges;
+            rowChanges.push_back({ complete.headers[static_cast<size_t>(deliveryCol)], L"", date::FormatGermanDate(*delivery) });
+            rowChanges.push_back({ complete.headers[static_cast<size_t>(chargeCol)], L"", charge });
+            rowChanges.push_back({ complete.headers[static_cast<size_t>(vialCol)], L"", identifier });
+            rowChanges.push_back({ complete.headers[static_cast<size_t>(expiryCol)], L"", date::FormatGermanDate(*expiry) });
+            if (impFilterCol >= 0 && impFilterCol != deliveryCol && impFilterCol != chargeCol &&
+                impFilterCol != vialCol && impFilterCol != expiryCol)
+            {
+                rowChanges.push_back({
+                    complete.headers[static_cast<size_t>(impFilterCol)],
+                    L"",
+                    imp.inventoryImpValue.empty() ? imp.name : imp.inventoryImpValue });
+            }
+            createdRows.emplace_back(excelRow, std::move(rowChanges));
         }
 
         // Optional genau die ausgewählte Bestellung als erhalten markieren.
+        std::vector<AuditChange> receivedOrderChanges;
+        std::wstring receivedOrderSheet;
         if (receivedOrderExcelRow > 0 && !imp.orderSheet.empty())
         {
             auto completeOrders = workbook.ReadSheet(imp.orderSheet);
@@ -1235,33 +1298,57 @@ namespace med
             if (receivedOrderExcelRow <= completeOrders.firstRow)
                 throw std::runtime_error("Die ausgewählte Bestellung besitzt keine gültige Excel-Zeilennummer.");
 
+            const auto oldReceived = date::Trim(ToText(
+                workbook.GetCell(imp.orderSheet, receivedOrderExcelRow, completeOrders.firstColumn + receivedCol),
+                completeOrders.headers[static_cast<size_t>(receivedCol)]));
+
             workbook.SetCell(
                 imp.orderSheet,
                 receivedOrderExcelRow,
                 completeOrders.firstColumn + receivedCol,
                 CellValue::Number(date::ToExcelSerial(*delivery)),
                 true);
+
+            receivedOrderSheet = imp.orderSheet;
+            receivedOrderChanges.push_back({
+                completeOrders.headers[static_cast<size_t>(receivedCol)],
+                oldReceived,
+                date::FormatGermanDate(*delivery) });
         }
 
         workbook.Save();
         workbook.Close(false);
+
+        for (auto& [row, changes] : createdRows)
+            WriteAudit(study, &imp, L"GOODS_RECEIPT", imp.inventorySheet, row, std::move(changes), operationId);
+
+        if (!receivedOrderChanges.empty())
+            WriteAudit(study, &imp, L"ORDER_RECEIVED", receivedOrderSheet, receivedOrderExcelRow,
+                std::move(receivedOrderChanges), operationId, L"Wareneingang wurde der ausgewählten offenen Bestellung zugeordnet.");
     }
 
-    // -------------------------------------------------------------------------
-    // Patienten- und Visitendaten schreiben
-    // -------------------------------------------------------------------------
     void ExcelStudyRepository::SetVisitDate(const StudyData& study, int excelRow, int excelColumn, const std::wstring& dateText) const
     {
         const auto parsed = date::ParseGermanDate(dateText);
         if (!parsed) throw std::runtime_error("Bitte das Datum im Format TT.MM.JJJJ eingeben.");
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
         auto workbook = excel.Open(study.excelPath, false);
         if (workbook.IsReadOnly()) throw std::runtime_error("Die Studien-Excel ist schreibgeschützt oder bereits in Excel geöffnet.");
+
+        const auto oldValue = date::Trim(ToText(
+            workbook.GetCell(study.config.visitSheet, excelRow, excelColumn),
+            L"Datum"));
+        const auto newValue = date::FormatGermanDate(*parsed);
+
         workbook.SetCell(study.config.visitSheet, excelRow, excelColumn, CellValue::Number(date::ToExcelSerial(*parsed)), true);
         workbook.Save();
         workbook.Close(false);
+
+        WriteAudit(study, nullptr, L"VISIT_DATE_UPDATE", study.config.visitSheet, excelRow,
+            { { L"Visiten-Datum", oldValue, newValue } }, L"", L"Excel-Spalte " + std::to_wstring(excelColumn));
     }
 
     void ExcelStudyRepository::AddPatient(const StudyData& study, const std::wstring& patientId) const
@@ -1271,6 +1358,7 @@ namespace med
         for (const auto& existing : study.patientIds)
             if (date::Normalize(existing) == date::Normalize(id)) throw std::runtime_error("Diese Patienten-ID existiert bereits.");
 
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1290,11 +1378,15 @@ namespace med
         workbook.SetCell(study.config.visitSheet, study.visitTable.firstRow, newColumn, CellValue::Text(id), false);
         workbook.Save();
         workbook.Close(false);
+
+        WriteAudit(study, nullptr, L"PATIENT_CREATE", study.config.visitSheet, study.visitTable.firstRow,
+            { { L"Patienten-ID", L"", id } }, L"", L"Neue Patientenspalte " + std::to_wstring(newColumn));
     }
 
     void ExcelStudyRepository::AddVisitRow(const StudyData& study, const std::map<std::wstring, std::wstring>& metadata) const
     {
         if (study.visitMetadataHeaders.empty()) throw std::runtime_error("Die Visitenstruktur konnte nicht erkannt werden.");
+        AuditLogger::EnsureWritable();
         CheckUnchanged(study);
         CreateBackup(study);
         excel::Application excel;
@@ -1303,6 +1395,7 @@ namespace med
 
         const int dataIndex = LastNonEmptyDataRow(study.visitTable) + 1;
         const int excelRow = study.visitTable.firstRow + 1 + dataIndex;
+        std::vector<AuditChange> auditChanges;
         for (size_t c = 0; c < study.visitMetadataHeaders.size(); ++c)
         {
             const auto& header = study.visitMetadataHeaders[c];
@@ -1315,8 +1408,11 @@ namespace med
                 try { value = CellValue::Number(std::stod(text)); } catch (...) {}
             }
             workbook.SetCell(study.config.visitSheet, excelRow, study.visitTable.firstColumn + static_cast<int>(c), value, false);
+            if (!text.empty()) auditChanges.push_back({ header, L"", text });
         }
         workbook.Save();
         workbook.Close(false);
+
+        WriteAudit(study, nullptr, L"VISIT_CREATE", study.config.visitSheet, excelRow, std::move(auditChanges));
     }
 }
