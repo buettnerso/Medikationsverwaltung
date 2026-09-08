@@ -76,12 +76,12 @@ CODE\_UEBERSICHT.md
 Beispiel:
 
 Studien  
-├── RUX-ECP  
-│   ├── RUX\_ECP\_Bestellübersicht.xlsx
-│   └── Documents  
-└── SEQUENCE  
-├── SEQUENCE\_Bestellübersicht.xlsx
-    └── Documents\\
+    RUX-ECP  
+        RUX\_ECP\_Bestellübersicht.xlsx
+        Documents  
+    SEQUENCE  
+        SEQUENCE\_Bestellübersicht.xlsx
+        Documents\\
 
 
 
