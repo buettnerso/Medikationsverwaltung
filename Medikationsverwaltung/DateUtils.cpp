@@ -1,14 +1,3 @@
-// ============================================================================
-// Datei: DateUtils.cpp
-// Zweck: Implementiert robuste Datums- und Textkonvertierungen für Eingaben aus Excel und aus der GUI.
-//
-// Verantwortlichkeiten:
-// - Akzeptiert mehrere Datumsformate und wandelt zwischen std::chrono::sys_days und Excel-Serienwerten um.
-// - Normalisiert Spaltennamen, damit unterschiedliche Schreibweisen zuverlässig verglichen werden können.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "pch.h"
 #include "DateUtils.h"
 
@@ -29,12 +18,6 @@ namespace med::date
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Textnormalisierung
-    // -------------------------------------------------------------------------
-    // Diese Funktionen werden besonders beim Vergleich frei benannter Excel-
-    // Spalten verwendet. Normalize reduziert Unterschiede durch Groß-/Kleinschreibung,
-    // Leerzeichen und Satzzeichen.
     std::wstring Trim(std::wstring value)
     {
         auto isSpace = [](wchar_t c) { return std::iswspace(c) != 0; };
@@ -144,13 +127,22 @@ namespace med::date
             n.find(L"zuruckgegeben") != std::wstring::npos ||
             n.find(L"zurueckgegeben") != std::wstring::npos ||
             n.find(L"zurückgegeben") != std::wstring::npos ||
+            n.find(L"zurckgegeben") != std::wstring::npos ||
             n.find(L"ruckgabe") != std::wstring::npos ||
             n.find(L"rueckgabe") != std::wstring::npos ||
             n.find(L"rückgabe") != std::wstring::npos ||
+            n.find(L"rckgabe") != std::wstring::npos ||
             n.find(L"vernichtung") != std::wstring::npos ||
             n.find(L"verfall") != std::wstring::npos ||
             n.find(L"expiry") != std::wstring::npos ||
+            n.find(L"expiration") != std::wstring::npos ||
+            n.find(L"haltbar") != std::wstring::npos ||
+            n.find(L"gueltig") != std::wstring::npos ||
+            n.find(L"gültig") != std::wstring::npos ||
+            n.find(L"validuntil") != std::wstring::npos ||
             n.find(L"dispensing") != std::wstring::npos ||
+            n.find(L"ausgabe") != std::wstring::npos ||
+            n.find(L"ausgegeben") != std::wstring::npos ||
             n.find(L"delivery") != std::wstring::npos ||
             n.find(L"received") != std::wstring::npos;
     }

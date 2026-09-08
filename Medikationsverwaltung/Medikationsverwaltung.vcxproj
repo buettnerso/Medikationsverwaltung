@@ -98,6 +98,7 @@
     <ClInclude Include="App.h" />
     <ClInclude Include="AppVersion.h" />
     <ClInclude Include="AuditLogger.h" />
+    <ClInclude Include="MedicationDocumentation.h" />
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="Models.h" />
     <ClInclude Include="DateUtils.h" />
@@ -115,6 +116,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="App.cpp" />
     <ClCompile Include="AuditLogger.cpp" />
+    <ClCompile Include="MedicationDocumentation.cpp" />
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="DateUtils.cpp" />
     <ClCompile Include="Settings.cpp" />

@@ -1,13 +1,38 @@
-// ============================================================================
-// Datei: AppIcon.rc
-// Zweck: Bindet das Anwendungsicon als native Windows-Ressource direkt in die EXE ein.
-//
-// Verantwortlichkeiten:
-// - Dadurch ist das Icon nicht von einem externen Laufzeitpfad abhängig.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "resource.h"
+#include <winver.h>
 
 IDI_APP_ICON ICON "Assets\\Medikationsverwaltung_AppIcon.ico"
+
+// Windows-Dateieigenschaften der EXE. Die sichtbare Produktversion wird
+// zusätzlich zentral in AppVersion.h und im Inno-Setup-Skript gepflegt.
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,8,18,0
+ PRODUCTVERSION 1,8,18,0
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040704B0"
+        BEGIN
+            VALUE "CompanyName", "Medikationsverwaltung\0"
+            VALUE "FileDescription", "Medikationsverwaltung für klinische Studien\0"
+            VALUE "FileVersion", "1.8.18.0\0"
+            VALUE "InternalName", "Medikationsverwaltung.exe\0"
+            VALUE "OriginalFilename", "Medikationsverwaltung.exe\0"
+            VALUE "ProductName", "Medikationsverwaltung\0"
+            VALUE "ProductVersion", "1.8.18\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0407, 1200
+    END
+END

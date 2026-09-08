@@ -1,14 +1,3 @@
-// ============================================================================
-// Datei: MainWindow.h
-// Zweck: Deklariert das Hauptfenster und koordiniert Navigation, Studienauswahl und alle studienspezifischen Arbeitsbereiche.
-//
-// Verantwortlichkeiten:
-// - Verbindet GUI-Ereignisse mit Repository, Bestellplanung und Berichtsexport.
-// - Hält ausschließlich UI-Zustand; Excel-Zugriffe werden an ExcelStudyRepository delegiert.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #pragma once
 
 #include "pch.h"
@@ -23,9 +12,6 @@
 
 namespace med
 {
-    /// Zentrale Präsentationsschicht der Desktopanwendung.
-    /// MainWindow baut die Oberfläche vollständig in C++ auf und delegiert Datenzugriffe
-    /// an ExcelStudyRepository sowie Berichte an ReportService.
     class MainWindow
     {
     public:
@@ -39,7 +25,6 @@ namespace med
         using ComboBox = winrt::Microsoft::UI::Xaml::Controls::ComboBox;
         using CheckBox = winrt::Microsoft::UI::Xaml::Controls::CheckBox;
 
-        // ----- Navigation und globale Seiten -----
         void BuildNavigation();
         void LoadStudies();
         void RenderSection(const std::wstring& tag);
@@ -49,7 +34,6 @@ namespace med
         void RenderGlobalDocuments();
         void RenderSettings();
 
-        // ----- Wiederverwendbare Bausteine des studienspezifischen Arbeitsbereichs -----
         FrameworkElement BuildTopBar(const std::wstring& title, const std::wstring& subtitle = L"");
         FrameworkElement BuildStudyTabs();
         FrameworkElement BuildStudyOverview(const StudyData& study);
@@ -63,7 +47,6 @@ namespace med
         FrameworkElement BuildDocumentQuickLinks(const StudyData& study, const std::wstring& categoryContains);
         const ImpData* SelectedImp(const StudyData& study) const;
 
-        // ----- Auswahl, Dateipfade und allgemeine Aktionen -----
         const StudyData* CurrentStudy() const;
         StudyData* CurrentStudy();
         std::filesystem::path ReportRoot(const StudyData& study) const;
@@ -81,9 +64,6 @@ namespace med
         void RefreshVisitDateInput();
         void RefreshCurrentView();
 
-        /// Persistenter UI-Zustand einer interaktiven Tabelle. Der Schlüssel der Tabelle
-        /// sorgt dafür, dass Filter, Sortierung, Auswahl und Scrollposition einen Neuaufbau
-        /// der programmgesteuerten Oberfläche überleben.
         struct TableViewState
         {
             std::map<size_t, std::wstring> filters;
@@ -94,8 +74,6 @@ namespace med
             double horizontalOffset{ 0.0 };
         };
 
-        /// Erzeugt die einheitliche Tabellenkomponente mit Filter-/Sortiermenü, optionaler
-        /// Zeilenauswahl, fixiertem Kopf sowie erhaltenen Scrollpositionen.
         FrameworkElement BuildInteractiveTable(
             const std::wstring& key,
             const std::vector<std::wstring>& headers,
@@ -109,12 +87,10 @@ namespace med
         static std::wstring JoinVisitMetadata(const VisitRowDefinition& row);
         static int HeaderLike(const SheetTable& table, const std::vector<std::wstring>& candidates);
 
-        // ----- Laufender UI-Zustand -----
         winrt::Microsoft::UI::Xaml::Window m_window{ nullptr };
         HWND m_hwnd{};
         winrt::Microsoft::UI::Xaml::Controls::NavigationView m_navigation{ nullptr };
 
-        // ----- Anwendungsdaten und aktuell ausgewählte Studie/IMP -----
         AppSettings m_settings;
         ExcelStudyRepository m_repository;
         std::vector<StudyData> m_studies;
@@ -125,7 +101,6 @@ namespace med
         bool m_rendering{ false };
         double m_overviewScrollOffset{ 0.0 };
 
-        // ----- Controls, deren Werte von Ereignishandlern benötigt werden -----
         ComboBox m_studyCombo{ nullptr };
         ComboBox m_orderImpCombo{ nullptr };
         ComboBox m_inventoryImpCombo{ nullptr };
@@ -142,6 +117,7 @@ namespace med
         TextBox m_newPatientInput{ nullptr };
         ComboBox m_reportPatientCombo{ nullptr };
         TextBox m_settingsFolderInput{ nullptr };
+        TextBox m_auditFolderInput{ nullptr };
         std::map<std::wstring, TextBox> m_exportFolderInputs;
         TextBox m_notesInput{ nullptr };
         TextBox m_profileStudyNameInput{ nullptr };
@@ -156,7 +132,6 @@ namespace med
         ComboBox m_batchOrderCombo{ nullptr };
         std::vector<int> m_batchOpenOrderRows;
 
-        // Tabellenzustände werden über stabile Schlüssel pro Ansicht gespeichert.
         std::map<std::wstring, TableViewState> m_tableStates;
     };
 }

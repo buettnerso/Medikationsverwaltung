@@ -785,7 +785,9 @@ namespace med
                 if (imp.name.empty()) { ++profileIndex; continue; }
                 imp.id = ReadRowText(study.profileTable, row, { L"IMP-ID", L"IMP ID" }, imp.id.empty() ? imp.name : imp.id);
                 imp.goodsType = ReadRowText(study.profileTable, row, { L"Warenart", L"Typ" }, imp.goodsType.empty() ? L"Studienware" : imp.goodsType);
-                imp.applicationForm = ReadRowText(study.profileTable, row, { L"Applikationsform", L"Darreichungsform" }, imp.applicationForm);
+                imp.applicationForm = ReadRowText(study.profileTable, row, { L"Applikationsform", L"Darreichungsform", L"Arzneiform" }, imp.applicationForm);
+                imp.packageContent = ReadRowText(study.profileTable, row, { L"Packungsinhalt", L"Packungsgröße", L"Packungsgrösse", L"Package Content", L"Pack Size" }, imp.packageContent);
+                imp.doseStrength = ReadRowText(study.profileTable, row, { L"Dosisstärke", L"Dosierungsstärke", L"Strength", L"Dose Strength" }, imp.doseStrength);
                 const bool defaultOrder = date::Normalize(imp.goodsType).find(L"handelsware") == std::wstring::npos;
                 imp.orderRequired = ReadRowBool(study.profileTable, row, { L"Bestellpflicht", L"Bestellen", L"Bestellpflichtig" }, defaultOrder);
                 imp.minimumStock = ReadRowNumber(study.profileTable, row, { L"Mindestbestand", L"Mindesbestand", L"Minimum" }, imp.minimumStock);
@@ -820,7 +822,9 @@ namespace med
 
                 imp.id = date::Trim(study.profileTable.headers[c]);
                 if (imp.id.empty()) imp.id = imp.name;
-                imp.applicationForm = ProfileText(study.profileTable, { L"Applikationsform", L"Darreichungsform" }, c, imp.applicationForm);
+                imp.applicationForm = ProfileText(study.profileTable, { L"Applikationsform", L"Darreichungsform", L"Arzneiform" }, c, imp.applicationForm);
+                imp.packageContent = ProfileText(study.profileTable, { L"Packungsinhalt", L"Packungsgröße", L"Packungsgrösse", L"Package Content", L"Pack Size" }, c, imp.packageContent);
+                imp.doseStrength = ProfileText(study.profileTable, { L"Dosisstärke", L"Dosierungsstärke", L"Strength", L"Dose Strength" }, c, imp.doseStrength);
                 imp.goodsType = ProfileText(study.profileTable, { L"Studienware/Handelsware", L"Warenart" }, c, imp.goodsType.empty() ? L"Studienware" : imp.goodsType);
                 const bool defaultOrder = date::Normalize(imp.goodsType).find(L"handelsware") == std::wstring::npos;
                 imp.orderRequired = ProfileBool(study.profileTable, { L"Von STA Bestellpflichtig", L"Bestellpflichtig", L"Bestellpflicht" }, c, defaultOrder);

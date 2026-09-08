@@ -10,6 +10,7 @@
 namespace
 {
     std::mutex g_auditMutex;
+    std::filesystem::path g_auditDirectory;
 
     std::wstring EnvironmentValue(const wchar_t* name)
     {
@@ -124,6 +125,19 @@ namespace
         return value;
     }
 
+    std::filesystem::path DefaultAuditDirectory()
+    {
+        const auto localAppData = EnvironmentValue(L"LOCALAPPDATA");
+        if (localAppData.empty())
+            throw std::runtime_error("Der lokale Windows-Anwendungsdatenordner (LOCALAPPDATA) konnte nicht ermittelt werden.");
+        return std::filesystem::path(localAppData) / L"Medikationsverwaltung" / L"Audit";
+    }
+
+    std::filesystem::path AuditDirectoryNoLock()
+    {
+        return g_auditDirectory.empty() ? DefaultAuditDirectory() : g_auditDirectory;
+    }
+
     const char* HeaderLine()
     {
         return "TimestampUTC;OperationId;User;Computer;AppVersion;Study;EUCT;Workbook;IMP;Action;Sheet;ExcelRow;Field;OldValue;NewValue;Reason;Details\r\n";
@@ -172,20 +186,22 @@ namespace
 
 namespace med
 {
+    void AuditLogger::SetAuditDirectory(const std::filesystem::path& directory)
+    {
+        std::scoped_lock lock(g_auditMutex);
+        g_auditDirectory = directory;
+    }
+
     std::filesystem::path AuditLogger::AuditDirectory()
     {
-        auto localAppData = EnvironmentValue(L"LOCALAPPDATA");
-        if (localAppData.empty())
-            throw std::runtime_error("Der lokale Windows-Anwendungsdatenordner (LOCALAPPDATA) konnte nicht ermittelt werden.");
-
-        return std::filesystem::path(localAppData)
-            / L"Medikationsverwaltung"
-            / L"Audit";
+        std::scoped_lock lock(g_auditMutex);
+        return AuditDirectoryNoLock();
     }
 
     std::filesystem::path AuditLogger::CurrentLogFile()
     {
-        return AuditDirectory()
+        std::scoped_lock lock(g_auditMutex);
+        return AuditDirectoryNoLock()
             / (L"Audit_" + SafeFilePart(ComputerName()) + L"_" + UtcMonth() + L".csv");
     }
 
@@ -193,18 +209,18 @@ namespace med
     {
         std::scoped_lock lock(g_auditMutex);
 
-        const auto directory = AuditDirectory();
+        const auto directory = AuditDirectoryNoLock();
         std::filesystem::create_directories(directory);
-        const auto path = CurrentLogFile();
+        const auto path = directory / (L"Audit_" + SafeFilePart(ComputerName()) + L"_" + UtcMonth() + L".csv");
 
         std::ofstream out(path, std::ios::binary | std::ios::app);
         if (!out)
-            throw std::runtime_error("Das lokale AuditLog kann nicht geöffnet werden. Die Änderung wurde aus Sicherheitsgründen nicht durchgeführt.");
+            throw std::runtime_error("Das AuditLog kann am konfigurierten Speicherort nicht geöffnet werden. Die Änderung wurde aus Sicherheitsgründen nicht durchgeführt.");
 
         EnsureHeader(out, path);
         out.flush();
         if (!out)
-            throw std::runtime_error("Das lokale AuditLog ist nicht beschreibbar. Die Änderung wurde aus Sicherheitsgründen nicht durchgeführt.");
+            throw std::runtime_error("Das AuditLog ist am konfigurierten Speicherort nicht beschreibbar. Die Änderung wurde aus Sicherheitsgründen nicht durchgeführt.");
     }
 
     std::wstring AuditLogger::NewOperationId()
@@ -226,9 +242,9 @@ namespace med
     {
         std::scoped_lock lock(g_auditMutex);
 
-        const auto directory = AuditDirectory();
+        const auto directory = AuditDirectoryNoLock();
         std::filesystem::create_directories(directory);
-        const auto path = CurrentLogFile();
+        const auto path = directory / (L"Audit_" + SafeFilePart(ComputerName()) + L"_" + UtcMonth() + L".csv");
 
         std::ofstream out(path, std::ios::binary | std::ios::app);
         if (!out)

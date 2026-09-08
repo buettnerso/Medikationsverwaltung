@@ -10,6 +10,7 @@
     <ClCompile Include="main.cpp"><Filter>Source</Filter></ClCompile>
     <ClCompile Include="App.cpp"><Filter>Source</Filter></ClCompile>
     <ClCompile Include="AuditLogger.cpp"><Filter>Source</Filter></ClCompile>
+    <ClCompile Include="MedicationDocumentation.cpp"><Filter>Source</Filter></ClCompile>
     <ClCompile Include="MainWindow.cpp"><Filter>Source</Filter></ClCompile>
     <ClCompile Include="DateUtils.cpp"><Filter>Source</Filter></ClCompile>
     <ClCompile Include="Settings.cpp"><Filter>Source</Filter></ClCompile>
@@ -24,6 +25,7 @@
     <ClInclude Include="App.h"><Filter>Header</Filter></ClInclude>
     <ClInclude Include="AppVersion.h"><Filter>Header</Filter></ClInclude>
     <ClInclude Include="AuditLogger.h"><Filter>Header</Filter></ClInclude>
+    <ClInclude Include="MedicationDocumentation.h"><Filter>Header</Filter></ClInclude>
     <ClInclude Include="MainWindow.h"><Filter>Header</Filter></ClInclude>
     <ClInclude Include="Models.h"><Filter>Header</Filter></ClInclude>
     <ClInclude Include="DateUtils.h"><Filter>Header</Filter></ClInclude>

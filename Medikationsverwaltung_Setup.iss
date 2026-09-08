@@ -12,7 +12,7 @@
 ; ============================================================================
 
 #define MyAppName "Medikationsverwaltung"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.8.18"
 #define MyAppPublisher "Medikationsverwaltung"
 #define MyAppExeName "Medikationsverwaltung.exe"
 #define MyAppSourceDir "x64\Release\Medikationsverwaltung"
@@ -24,6 +24,7 @@ AppId={{5CE1BF74-BC88-426F-966E-9AA039343834}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
+VersionInfoVersion={#MyAppVersion}.0
 AppPublisher={#MyAppPublisher}
 
 ; Installation für alle Benutzer unter Program Files.

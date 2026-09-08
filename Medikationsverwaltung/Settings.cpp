@@ -1,14 +1,3 @@
-// ============================================================================
-// Datei: Settings.cpp
-// Zweck: Liest und schreibt die lokale Anwendungskonfiguration sowie optionale study.config.ini-Dateien.
-//
-// Verantwortlichkeiten:
-// - Speichert Benutzereinstellungen außerhalb des Programmordners.
-// - Verwendet ein bewusst einfaches Schlüssel=Wert-Format ohne externe Abhängigkeiten.
-//
-// Hinweis: Kommentare erläutern Architektur und nicht offensichtliche Logik.
-// Triviale Sprachkonstrukte werden bewusst nicht zeilenweise kommentiert.
-// ============================================================================
 #include "pch.h"
 #include "Settings.h"
 #include "Models.h"
@@ -18,9 +7,6 @@
 
 namespace
 {
-    // -------------------------------------------------------------------------
-    // Pfad-Hilfsfunktionen
-    // -------------------------------------------------------------------------
     std::filesystem::path ExecutableDirectory()
     {
         std::wstring buffer(32768, L'\0');
@@ -81,6 +67,13 @@ namespace med
         return documents / L"Medikationsverwaltung" / L"Studien";
     }
 
+    std::filesystem::path AppSettings::DefaultAuditFolder()
+    {
+        auto localAppData = KnownFolder(FOLDERID_LocalAppData);
+        if (localAppData.empty()) localAppData = ExecutableDirectory();
+        return localAppData / L"Medikationsverwaltung" / L"Audit";
+    }
+
     AppSettings AppSettings::Load()
     {
         AppSettings settings;
@@ -90,6 +83,7 @@ namespace med
         if (localAppData.empty()) localAppData = settings.executableDirectory;
         settings.settingsDirectory = localAppData / L"Medikationsverwaltung";
         settings.studyFolder = DefaultStudyFolder();
+        settings.auditFolder = DefaultAuditFolder();
 
         const auto values = SimpleIni::Load(settings.SettingsPath());
         if (const auto it = values.find(L"studyfolder"); it != values.end() && !it->second.empty())
@@ -97,6 +91,12 @@ namespace med
             std::filesystem::path p = it->second;
             if (p.is_relative()) p = settings.executableDirectory / p;
             settings.studyFolder = p;
+        }
+        if (const auto it = values.find(L"auditfolder"); it != values.end() && !it->second.empty())
+        {
+            std::filesystem::path p = it->second;
+            if (p.is_relative()) p = settings.settingsDirectory / p;
+            settings.auditFolder = p;
         }
         for (const auto& [key, value] : values)
         {
@@ -117,7 +117,10 @@ namespace med
 
     void AppSettings::Save() const
     {
-        std::map<std::wstring, std::wstring> values{ {L"StudyFolder", studyFolder.wstring()} };
+        std::map<std::wstring, std::wstring> values{
+            {L"StudyFolder", studyFolder.wstring()},
+            {L"AuditFolder", auditFolder.wstring()}
+        };
         for (const auto& [studyKey, path] : studyExportFolders)
             values[L"ExportFolder." + studyKey] = path.wstring();
         SimpleIni::Save(SettingsPath(), values);

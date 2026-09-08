@@ -34,8 +34,12 @@ namespace med
     class AuditLogger
     {
     public:
-        // Lokaler Audit-Ordner des aktuellen Windows-Benutzerprofils:
-        // %LOCALAPPDATA%\Medikationsverwaltung\Audit
+        // Konfiguriert den Audit-Ordner für die laufende Anwendung.
+        // Standard ist %LOCALAPPDATA%\Medikationsverwaltung\Audit; in den
+        // Einstellungen kann aber z. B. ein freigegebener Netzwerkordner gewählt werden.
+        static void SetAuditDirectory(const std::filesystem::path& directory);
+
+        // Aktuell verwendeter Audit-Ordner.
         static std::filesystem::path AuditDirectory();
 
         // Aktuelle monatliche Audit-Datei. Der Rechnername ist Bestandteil

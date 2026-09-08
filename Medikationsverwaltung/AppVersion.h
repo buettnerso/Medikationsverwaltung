@@ -5,6 +5,6 @@
 // Inno-Setup-Skript synchron gehalten werden.
 namespace med::version
 {
-    inline constexpr wchar_t Current[] = L"1.2.0";
-    inline constexpr wchar_t Display[] = L"Version 1.2.0";
+    inline constexpr wchar_t Current[] = L"1.8.18";
+    inline constexpr wchar_t Display[] = L"Version 1.8.18";
 }

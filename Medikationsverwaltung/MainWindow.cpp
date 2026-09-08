@@ -5,6 +5,7 @@
 #include "DateUtils.h"
 #include "AppVersion.h"
 #include "AuditLogger.h"
+#include "MedicationDocumentation.h"
 #include "OrderPlanner.h"
 #include "ReportService.h"
 #include "UiHelpers.h"
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <cwchar>
 #include <cwctype>
 #include <sstream>
@@ -39,6 +41,57 @@ namespace
         button.Background(med::ui::Brush(45, 93, 140));
         button.Foreground(med::ui::Brush(255, 255, 255));
         return button;
+    }
+
+    void CopyTextToClipboard(HWND owner, const std::wstring& text)
+    {
+        if (!::OpenClipboard(owner))
+            throw std::runtime_error("Die Zwischenablage konnte nicht geöffnet werden.");
+
+        HGLOBAL memory = nullptr;
+        try
+        {
+            if (!::EmptyClipboard())
+                throw std::runtime_error("Die Zwischenablage konnte nicht geleert werden.");
+
+            const SIZE_T bytes = (text.size() + 1) * sizeof(wchar_t);
+            memory = ::GlobalAlloc(GMEM_MOVEABLE, bytes);
+            if (!memory)
+                throw std::runtime_error("Für die Zwischenablage konnte kein Speicher reserviert werden.");
+
+            void* target = ::GlobalLock(memory);
+            if (!target)
+                throw std::runtime_error("Der Zwischenablagespeicher konnte nicht geöffnet werden.");
+
+            ::CopyMemory(target, text.c_str(), bytes);
+            ::GlobalUnlock(memory);
+
+            if (!::SetClipboardData(CF_UNICODETEXT, memory))
+                throw std::runtime_error("Der Text konnte nicht in die Zwischenablage kopiert werden.");
+
+            // Nach erfolgreichem SetClipboardData gehört der Speicher Windows.
+            memory = nullptr;
+            ::CloseClipboard();
+        }
+        catch (...)
+        {
+            if (memory) ::GlobalFree(memory);
+            ::CloseClipboard();
+            throw;
+        }
+    }
+
+    std::wstring ExpiryForDocumentation(const med::CellValue& value, const std::wstring& header)
+    {
+        if (const auto parsed = med::date::CellToDate(value))
+        {
+            // Wenn Excel ein vollständiges Datum enthält, wird es auch im
+            // Dokumentationstext vollständig als TT.MM.JJJJ dargestellt.
+            return med::date::FormatGermanDate(*parsed);
+        }
+
+        // Teilangaben wie 01/2027 sollen unverändert erhalten bleiben.
+        return med::date::Trim(med::date::CellToDisplay(value, true));
     }
 
 
@@ -288,6 +341,7 @@ namespace med
     MainWindow::MainWindow()
     {
         m_settings = AppSettings::Load();
+        AuditLogger::SetAuditDirectory(m_settings.auditFolder);
         m_window = Window();
         m_window.Title(L"Medikationsverwaltung");
 
@@ -2449,14 +2503,7 @@ namespace med
         StackPanel card; card.Spacing(10);
         card.Children().Append(ui::Text(L"Drug Accountability – " + imp->name, 16, true));
         card.Children().Append(ui::Text(
-            L"Die Berichte werden bei jedem Export neu aus dem aktuellen DrugInventory erzeugt. "
-            L"Es wird nur eine Excel-Datei erstellt; sie kann anschließend geprüft, ergänzt oder direkt aus Excel gedruckt werden.", 12, false));
-
-        int reportRows = 0;
-        for (const auto& row : imp->inventory.rows)
-            if (RowHasData(row)) ++reportRows;
-        card.Children().Append(ui::Text(L"Erkannte Inventardatensätze für dieses IMP: " + std::to_wstring(reportRows) +
-            L"   |   Inventarfilter: " + (imp->inventoryImpHeader.empty() ? L"keiner" : imp->inventoryImpHeader + L" = " + imp->inventoryImpValue), 11, false));
+            L"Excel-Berichte werden jeweils neu aus dem aktuellen DrugInventory erzeugt.", 12, false));
 
         auto exportInfo = ui::Text(L"Exportziel: " + ReportRoot(study).wstring(), 12, false);
         exportInfo.Foreground(ui::Brush(95, 107, 125));
@@ -2465,10 +2512,6 @@ namespace med
         // -------- Gesamtbericht --------
         StackPanel overallBox; overallBox.Spacing(7);
         overallBox.Children().Append(ui::Text(L"DrugAccount pro IMP – Gesamt", 14, true));
-        overallBox.Children().Append(ui::Text(
-            L"Enthält alle Inventardatensätze des ausgewählten IMP mit Wareneingang, Charge, Box-/Kit-Nr., "
-            L"Verfall, Ausgabe, Patient sowie – soweit vorhanden – Rückgabe und Vernichtung.", 11, false));
-
         auto overallTemplateInfo = ui::Text(L"Vorlage: " + DefaultDrugAccountOverallTemplate().wstring(), 10, false);
         overallTemplateInfo.Foreground(ui::Brush(95, 107, 125));
         overallBox.Children().Append(overallTemplateInfo);
@@ -2522,12 +2565,6 @@ namespace med
         if (!reportPatients.empty()) m_reportPatientCombo.SelectedIndex(0);
         patientBox.Children().Append(ui::LabeledField(L"Patient", m_reportPatientCombo));
 
-        patientBox.Children().Append(ui::Text(
-            L"Spalten: Charge No. | Box-Nr. / Kit-No. | Expiry Date | Dispensing Date | Comment | Signature | "
-            L"Date returned | Number unused | Destruction Date | Comment | Signature. "
-            L"Deutsche Quellspalten wie „Datum zurück gegeben am“, „Anzahl übrig gebliebener“ und „Datum Vernichtung“ "
-            L"werden ebenfalls erkannt. Datumswerte werden im Bericht als TT.MM.JJJJ ausgegeben.", 11, false));
-
         auto patientTemplateInfo = ui::Text(L"Vorlage: " + DefaultDrugAccountPatientTemplate().wstring(), 10, false);
         patientTemplateInfo.Foreground(ui::Brush(95, 107, 125));
         patientBox.Children().Append(patientTemplateInfo);
@@ -2563,7 +2600,264 @@ namespace med
         open.Click([this](auto&&, auto&&) { if (auto s = CurrentStudy()) OpenPath(ReportRoot(*s)); });
         card.Children().Append(open);
 
+        // Drug Accountability bleibt eine eigene visuelle Gruppe.
         panel.Children().Append(ui::Card(card));
+
+        // -------- Dokumentationstext für Medikamentenausgabe / -rückgabe --------
+        // Der Generator verwendet den ausgewählten DrugInventory-Datensatz als
+        // alleinige Quelle für die fachlichen Detailangaben. Nur Einnahmebeginn
+        // bzw. letzte Einnahme wird manuell ergänzt. Dadurch entstehen keine
+        // vom Excel-Datenbestand abweichenden frei editierten Parallelwerte.
+        StackPanel documentationBox; documentationBox.Spacing(8);
+        documentationBox.Children().Append(ui::Text(L"Dokumentationstext für Ausgabe / Rückgabe", 14, true));
+        documentationBox.Children().Append(ui::Text(
+            L"Der Text wird aus dem ausgewählten DrugInventory-Datensatz erzeugt; nur Einnahmebeginn bzw. letzte Einnahme wird manuell ergänzt.",
+            12, false));
+
+        ComboBox documentationType;
+        documentationType.Items().Append(box_value(L"Medikamentenausgabe"));
+        documentationType.Items().Append(box_value(L"Medikamentenrückgabe"));
+        documentationType.SelectedIndex(0);
+
+        ComboBox documentationInventory;
+        auto documentationTable = std::make_shared<SheetTable>(imp->inventory);
+        auto documentationRows = std::make_shared<std::vector<size_t>>();
+
+        const int docPatientCol = HeaderLike(*documentationTable, {
+            L"Pat.ID", L"Pat ID", L"Pat.-ID", L"PatID", L"PatientID", L"Patient ID",
+            L"Patient", L"Patienten-ID", L"Patienten ID", L"Patientennummer", L"Patienten-Nr.", L"Pat.Nr." });
+        const int docBatchCol = HeaderLike(*documentationTable, {
+            L"Charge No.", L"Charge No", L"Charge", L"Chargennummer", L"Batch", L"Batch No", L"Lot", L"Lot No" });
+        const int docIdentifierCol = HeaderLike(*documentationTable, {
+            L"Medikationsnummer", L"Medication Number", L"Medication No", L"Medication-No",
+            L"Box-Nr.", L"Box-Nr", L"Box Nr", L"Box No", L"Kit-No.", L"Kit-No", L"Kit No",
+            L"Vial No.", L"Vial No", L"Vial", L"Serial", L"Pack No" });
+        const int docDispensingCol = HeaderLike(*documentationTable, {
+            L"DispensingDate", L"Dispensing Date", L"Datum Ausgabe", L"Ausgabe am", L"Ausgegeben am", L"Dispensed" });
+        const int docReturnCol = HeaderLike(*documentationTable, {
+            L"Date returned", L"Return Date", L"Returned", L"Datum zurück gegeben am", L"Datum zurückgegeben am",
+            L"Zurückgegeben am", L"Rückgabe am", L"Rückgabedatum" });
+
+        // Einheitliche Darstellung der Excel-Zellwerte für Dokumentationszwecke.
+        // Normale Datumsfelder werden als TT.MM.JJJJ dargestellt; Verfallsfelder
+        // bewusst als MM/JJJJ, weil dies der üblichen Packungsangabe entspricht.
+        auto docCell = [documentationTable](size_t rowIndex, int column) -> std::wstring
+        {
+            if (column < 0 || rowIndex >= documentationTable->rows.size()) return L"";
+            const auto& row = documentationTable->rows[rowIndex];
+            if (static_cast<size_t>(column) >= row.size()) return L"";
+
+            const auto& header = static_cast<size_t>(column) < documentationTable->headers.size()
+                ? documentationTable->headers[static_cast<size_t>(column)] : L"";
+            const auto& value = row[static_cast<size_t>(column)];
+
+            const auto normalized = date::Normalize(header);
+            const bool expiryLike =
+                normalized.find(L"expiry") != std::wstring::npos ||
+                normalized.find(L"expiration") != std::wstring::npos ||
+                normalized.find(L"verfall") != std::wstring::npos ||
+                normalized.find(L"verwendbarbis") != std::wstring::npos ||
+                normalized.find(L"haltbar") != std::wstring::npos ||
+                normalized.find(L"gültig") != std::wstring::npos ||
+                normalized.find(L"gueltig") != std::wstring::npos;
+
+            if (expiryLike)
+                return ExpiryForDocumentation(value, header);
+
+            const bool dateLike =
+                date::HeaderLooksLikeDate(header) ||
+                normalized.find(L"ausgabe") != std::wstring::npos ||
+                normalized.find(L"ausgegeben") != std::wstring::npos;
+
+            return date::Trim(date::CellToDisplay(value, dateLike));
+        };
+
+        for (size_t r = 0; r < documentationTable->rows.size(); ++r)
+        {
+            if (!RowHasData(documentationTable->rows[r])) continue;
+            documentationRows->push_back(r);
+
+            const int excelRow = r < documentationTable->rowNumbers.size()
+                ? documentationTable->rowNumbers[r]
+                : documentationTable->firstRow + 1 + static_cast<int>(r);
+
+            std::wstring label = L"Excel-Zeile " + std::to_wstring(excelRow);
+
+            const auto patientValue = docCell(r, docPatientCol);
+            if (!patientValue.empty())
+            {
+                const std::wstring patientHeader = docPatientCol >= 0 && static_cast<size_t>(docPatientCol) < documentationTable->headers.size()
+                    ? documentationTable->headers[static_cast<size_t>(docPatientCol)] : L"Pat.ID";
+                label += L"  |  " + patientHeader + L": " + patientValue;
+            }
+
+            const auto identifierValue = docCell(r, docIdentifierCol);
+            if (!identifierValue.empty())
+            {
+                const std::wstring identifierHeader = docIdentifierCol >= 0 && static_cast<size_t>(docIdentifierCol) < documentationTable->headers.size()
+                    ? documentationTable->headers[static_cast<size_t>(docIdentifierCol)] : L"ID";
+                label += L"  |  " + identifierHeader + L": " + identifierValue;
+            }
+
+            const auto batchValue = docCell(r, docBatchCol);
+            if (!batchValue.empty())
+            {
+                const std::wstring batchHeader = docBatchCol >= 0 && static_cast<size_t>(docBatchCol) < documentationTable->headers.size()
+                    ? documentationTable->headers[static_cast<size_t>(docBatchCol)] : L"Charge";
+                label += L"  |  " + batchHeader + L": " + batchValue;
+            }
+
+            documentationInventory.Items().Append(box_value(label));
+        }
+        if (!documentationRows->empty()) documentationInventory.SelectedIndex(0);
+
+        TextBox docTherapyDate;
+        docTherapyDate.PlaceholderText(L"TT.MM.JJJJ – einzige manuell zu ergänzende Angabe");
+
+        TextBox docInventoryPreview;
+        docInventoryPreview.AcceptsReturn(true);
+        docInventoryPreview.TextWrapping(TextWrapping::Wrap);
+        docInventoryPreview.IsReadOnly(true);
+        docInventoryPreview.MinHeight(105);
+        docInventoryPreview.PlaceholderText(L"Hier werden die befüllten Felder der ausgewählten DrugInventory-Zeile angezeigt.");
+
+        TextBox docOutput;
+        docOutput.AcceptsReturn(true);
+        docOutput.TextWrapping(TextWrapping::Wrap);
+        docOutput.IsReadOnly(true);
+        docOutput.MinHeight(145);
+        docOutput.PlaceholderText(L"Hier erscheint der aus DrugInventory vorerstellte Dokumentationstext.");
+
+        StackPanel docInput; docInput.Spacing(7);
+        docInput.Children().Append(ui::LabeledField(L"Vorgang", documentationType));
+        docInput.Children().Append(ui::LabeledField(L"Inventardatensatz / Packung", documentationInventory));
+        docInput.Children().Append(ui::LabeledField(L"Einnahmebeginn / letzte Einnahme (manuell)", docTherapyDate));
+
+        StackPanel docSource; docSource.Spacing(7);
+        docSource.Children().Append(ui::Text(L"Datenquelle: DrugInventory", 13, true));
+        docSource.Children().Append(docInventoryPreview);
+
+        documentationBox.Children().Append(MakeResponsiveTwoCardGrid(ui::Card(docInput, 10), ui::Card(docSource, 10)));
+
+        auto fillDocumentationPreview = [
+            documentationType, documentationInventory, documentationRows, documentationTable,
+            docCell, docInventoryPreview]()
+        {
+            const int selected = documentationInventory.SelectedIndex();
+            if (selected < 0 || static_cast<size_t>(selected) >= documentationRows->size())
+            {
+                docInventoryPreview.Text(L"");
+                return;
+            }
+
+            const size_t rowIndex = (*documentationRows)[static_cast<size_t>(selected)];
+            if (rowIndex >= documentationTable->rows.size())
+            {
+                docInventoryPreview.Text(L"");
+                return;
+            }
+
+            const auto type = documentationType.SelectedIndex() == 1
+                ? MedicationDocumentationType::Return
+                : MedicationDocumentationType::Dispensing;
+
+            std::wstring preview;
+            for (size_t c = 0; c < documentationTable->headers.size(); ++c)
+            {
+                const auto header = date::Trim(documentationTable->headers[c]);
+                if (header.empty() || !ShouldIncludeMedicationDocumentationField(type, header))
+                    continue;
+
+                const auto value = docCell(rowIndex, static_cast<int>(c));
+                if (value.empty()) continue;
+
+                if (!preview.empty()) preview += L"\r\n";
+                preview += header + L": " + value;
+            }
+            docInventoryPreview.Text(preview);
+        };
+
+        documentationInventory.SelectionChanged([fillDocumentationPreview](auto&&, auto&&)
+        {
+            fillDocumentationPreview();
+        });
+        documentationType.SelectionChanged([fillDocumentationPreview](auto&&, auto&&)
+        {
+            fillDocumentationPreview();
+        });
+        fillDocumentationPreview();
+
+        StackPanel docActions; docActions.Orientation(Orientation::Horizontal); docActions.Spacing(8);
+        auto generateDocumentation = MakePrimaryButton(L"Dokumentationstext erstellen");
+        generateDocumentation.Click([
+            this, documentationType, documentationInventory, documentationRows, documentationTable,
+            docCell, docPatientCol, docDispensingCol, docReturnCol,
+            docTherapyDate, docOutput, medicationName = imp->name](auto&&, auto&&)
+        {
+            try
+            {
+                const int selected = documentationInventory.SelectedIndex();
+                if (selected < 0 || static_cast<size_t>(selected) >= documentationRows->size())
+                    throw std::runtime_error("Bitte einen DrugInventory-Datensatz auswählen.");
+
+                const size_t rowIndex = (*documentationRows)[static_cast<size_t>(selected)];
+                if (rowIndex >= documentationTable->rows.size())
+                    throw std::runtime_error("Der ausgewählte DrugInventory-Datensatz ist nicht mehr verfügbar.");
+
+                const auto type = documentationType.SelectedIndex() == 1
+                    ? MedicationDocumentationType::Return
+                    : MedicationDocumentationType::Dispensing;
+
+                MedicationDocumentationData data;
+                data.patientId = docCell(rowIndex, docPatientCol);
+                data.medicationName = date::Trim(medicationName);
+                data.eventDate = docCell(rowIndex,
+                    type == MedicationDocumentationType::Return ? docReturnCol : docDispensingCol);
+                data.therapyDate = date::Trim(std::wstring(docTherapyDate.Text().c_str()));
+                data.packageCount = L"1";
+
+                // Alle befüllten DrugInventory-Spalten werden ohne Umbenennung und
+                // in der Originalreihenfolge der Excel-Tabelle an den Generator übergeben.
+                for (size_t c = 0; c < documentationTable->headers.size(); ++c)
+                {
+                    const auto header = date::Trim(documentationTable->headers[c]);
+                    if (header.empty()) continue;
+
+                    const auto value = docCell(rowIndex, static_cast<int>(c));
+                    if (value.empty()) continue;
+
+                    data.inventoryFields.push_back(MedicationDocumentationField{ header, value });
+                }
+
+                docOutput.Text(BuildMedicationDocumentationText(type, data));
+            }
+            catch (const std::exception& e) { ShowError(e); }
+        });
+        docActions.Children().Append(generateDocumentation);
+
+        auto copyDocumentation = MakeButton(L"Text kopieren");
+        copyDocumentation.Click([this, docOutput](auto&&, auto&&)
+        {
+            try
+            {
+                const std::wstring text = docOutput.Text().c_str();
+                if (date::Trim(text).empty())
+                    throw std::runtime_error("Bitte zuerst einen Dokumentationstext erstellen.");
+                CopyTextToClipboard(m_hwnd, text);
+                ShowInfo(L"Dokumentationstext wurde in die Zwischenablage kopiert.");
+            }
+            catch (const std::exception& e) { ShowError(e); }
+        });
+        docActions.Children().Append(copyDocumentation);
+        documentationBox.Children().Append(docActions);
+        documentationBox.Children().Append(ui::LabeledField(L"Vorerstellter Text", docOutput));
+        documentationBox.Children().Append(ui::Text(
+            L"Der erzeugte Text wird nur kopiert; es erfolgt keine automatische Übertragung in andere Systeme.",
+            10, false));
+
+        // Dokumentationstext bewusst als eigene GroupBox/Card außerhalb von
+        // Drug Accountability darstellen, damit die Berichteseite übersichtlich bleibt.
+        panel.Children().Append(ui::Card(documentationBox));
         panel.Children().Append(BuildDocumentQuickLinks(study, L"DrugAccount"));
         return panel;
     }
@@ -2734,7 +3028,7 @@ namespace med
     {
         m_rendering = true;
         ScrollViewer scroll; StackPanel page; page.Padding(Thickness{ 18,16,18,24 }); page.Spacing(14);
-        page.Children().Append(BuildTopBar(L"Einstellungen", L"Studien-Datenordner und studienspezifische Exportpfade."));
+        page.Children().Append(BuildTopBar(L"Einstellungen", L"Studien-Datenordner, Exportpfade und AuditLog-Ablage."));
 
         StackPanel card; card.Spacing(8);
         card.Children().Append(ui::Text(L"Studien-Datenordner", 17, true));
@@ -2862,37 +3156,100 @@ namespace med
         exports.Children().Append(ui::Text(L"Die studienübergreifende CSV-Übersicht wird unter <Studien-Datenordner>\\Exporte gespeichert.", 12, false));
         page.Children().Append(ui::Card(exports));
 
-        // AuditLog ist absichtlich nicht abschaltbar. Pro lokalem Windows-
-        // Benutzerprofil und PC wird eine monatliche CSV-Datei geführt.
-        StackPanel audit; audit.Spacing(7);
+        // AuditLog ist absichtlich nicht abschaltbar. Der Ablageordner ist jedoch
+        // konfigurierbar, damit auch freigegebene IT-/Netzwerkpfade verwendet werden
+        // können. Der Standardpfad liegt weiterhin im lokalen Benutzerprofil.
+        StackPanel audit; audit.Spacing(8);
         audit.Children().Append(ui::Text(L"AuditLog", 17, true));
         audit.Children().Append(ui::Text(
-            L"Fachliche Änderungen und DrugAccount-Exporte werden automatisch protokolliert. Das AuditLog kann in der Anwendung nicht deaktiviert werden.",
+            L"Fachliche Änderungen und DrugAccount-Exporte werden automatisch protokolliert. Das AuditLog kann in der Anwendung nicht deaktiviert werden. Der Speicherort kann an die Vorgaben der IT angepasst werden.",
             13, false));
-        audit.Children().Append(ui::Text(
-            std::wstring(L"Lokaler Speicherort: ") + AuditLogger::AuditDirectory().wstring(),
-            12, false));
-        audit.Children().Append(ui::Text(
-            L"Die Einträge enthalten UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, IMP, Excel-Zeile sowie alten und neuen Wert.",
-            12, false));
+
+        m_auditFolderInput = TextBox();
+        m_auditFolderInput.Text(m_settings.auditFolder.wstring());
+        m_auditFolderInput.PlaceholderText(L"z. B. C:\\AuditLogs oder \\\\Server\\Freigabe\\Medikationsverwaltung\\Audit");
+        audit.Children().Append(ui::LabeledField(L"AuditLog-Speicherort", m_auditFolderInput));
+
+        StackPanel auditButtons; auditButtons.Orientation(Orientation::Horizontal); auditButtons.Spacing(8);
+
+        auto chooseAudit = MakeButton(L"Ordner auswählen...");
+        chooseAudit.Click([this](auto&&, auto&&)
+        {
+            try
+            {
+                auto initial = std::filesystem::path(std::wstring(m_auditFolderInput.Text().c_str()));
+                if (initial.empty()) initial = AppSettings::DefaultAuditFolder();
+                const auto selected = PickFolder(initial);
+                if (selected) m_auditFolderInput.Text(selected->wstring());
+            }
+            catch (const std::exception& e) { ShowError(e); }
+        });
+        auditButtons.Children().Append(chooseAudit);
+
+        auto standardAudit = MakeButton(L"Standard");
+        standardAudit.Click([this](auto&&, auto&&)
+        {
+            m_auditFolderInput.Text(AppSettings::DefaultAuditFolder().wstring());
+        });
+        auditButtons.Children().Append(standardAudit);
+
+        auto saveAudit = MakeButton(L"Audit-Pfad speichern");
+        saveAudit.Click([this](auto&&, auto&&)
+        {
+            const auto previousDirectory = AuditLogger::AuditDirectory();
+            try
+            {
+                auto path = std::filesystem::path(std::wstring(m_auditFolderInput.Text().c_str()));
+                if (path.empty()) throw std::runtime_error("Bitte einen AuditLog-Ordner angeben.");
+                if (path.is_relative()) path = m_settings.settingsDirectory / path;
+
+                std::filesystem::create_directories(path);
+                path = std::filesystem::weakly_canonical(path);
+
+                // Vor dem Speichern wird tatsächlich geprüft, ob die Anwendung dort
+                // eine Audit-Datei anlegen und beschreiben kann.
+                AuditLogger::SetAuditDirectory(path);
+                AuditLogger::EnsureWritable();
+
+                m_settings.auditFolder = path;
+                m_settings.Save();
+                m_auditFolderInput.Text(path.wstring());
+                ShowInfo(L"AuditLog-Speicherort gespeichert und Schreibzugriff erfolgreich geprüft.");
+            }
+            catch (const std::exception& e)
+            {
+                AuditLogger::SetAuditDirectory(previousDirectory);
+                ShowError(e);
+            }
+        });
+        auditButtons.Children().Append(saveAudit);
 
         auto openAudit = MakeButton(L"AuditLog-Ordner öffnen");
-        openAudit.HorizontalAlignment(HorizontalAlignment::Left);
         openAudit.Click([this](auto&&, auto&&)
         {
             try
             {
-                std::filesystem::create_directories(AuditLogger::AuditDirectory());
-                OpenPath(AuditLogger::AuditDirectory());
+                auto path = std::filesystem::path(std::wstring(m_auditFolderInput.Text().c_str()));
+                if (path.empty()) path = AuditLogger::AuditDirectory();
+                std::filesystem::create_directories(path);
+                OpenPath(path);
             }
             catch (const std::exception& e) { ShowError(e); }
         });
-        audit.Children().Append(openAudit);
+        auditButtons.Children().Append(openAudit);
+        audit.Children().Append(auditButtons);
+
+        audit.Children().Append(ui::Text(
+            L"Standardmäßig wird %LOCALAPPDATA%\\Medikationsverwaltung\\Audit verwendet; dieser Ordner benötigt normalerweise keine Administratorrechte. Für einen zentralen Netzwerkpfad müssen die erforderlichen Schreibrechte durch die IT vergeben werden.",
+            12, false));
+        audit.Children().Append(ui::Text(
+            L"Die Einträge enthalten UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, IMP, Excel-Zeile sowie alten und neuen Wert.",
+            12, false));
         page.Children().Append(ui::Card(audit));
 
         StackPanel technical; technical.Spacing(5);
         technical.Children().Append(ui::Text(L"Technischer Hinweis", 15, true));
-        technical.Children().Append(ui::Text(L"Für direktes Lesen, Schreiben und die Erstellung der Excel-Berichte wird die installierte Microsoft-Excel-Desktopanwendung über COM verwendet. Vor Änderungen an einer Studien-Excel wird weiterhin automatisch eine Sicherungskopie angelegt. Das lokale AuditLog ergänzt diese Sicherung um eine nachvollziehbare Änderungsdokumentation.", 12, false));
+        technical.Children().Append(ui::Text(L"Für direktes Lesen, Schreiben und die Erstellung der Excel-Berichte wird die installierte Microsoft-Excel-Desktopanwendung über COM verwendet. Vor Änderungen an einer Studien-Excel wird weiterhin automatisch eine Sicherungskopie angelegt. Das AuditLog ergänzt diese Sicherung um eine nachvollziehbare Änderungsdokumentation und kann lokal oder auf einem durch die IT freigegebenen Pfad abgelegt werden.", 12, false));
         page.Children().Append(ui::Card(technical));
 
         scroll.Content(page); m_navigation.Content(scroll); m_rendering = false;
