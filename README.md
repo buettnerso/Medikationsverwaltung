@@ -68,29 +68,6 @@ CODE\_UEBERSICHT.md
 
 
 
-
-
-
-#### Studienstruktur
-
-Beispiel:
-
-Studien  
-    RUX-ECP  
-        RUX\_ECP\_Bestellübersicht.xlsx
-        Documents  
-    SEQUENCE  
-        SEQUENCE\_Bestellübersicht.xlsx
-        Documents\\
-
-
-
-Der Ordnername dient als eindeutige Studienidentifikation.
-
-Sofern vorhanden, wird die EUCT-Nummer in der Studienauswahl als Studienname \[EUCT-No.] angezeigt.
-
-
-
 #### Navigation
 
 * Hauptbereiche
