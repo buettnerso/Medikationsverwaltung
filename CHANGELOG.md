@@ -7,6 +7,131 @@ Einige Funktionen wurden in späteren Versionen erneut angepasst oder ersetzt. I
 
 \---
 
+# v8.18 – ereignisbezogene Medikationsdokumentation
+
+Produktversion: **1.8.18**
+
+## Korrekturen
+
+* Excel-Datumsserien werden jetzt auch für deutsche Spalten wie `Ausgabe am` und `Haltbar bis` als Datum erkannt.
+* `Haltbar bis` wird bei einem vollständigen Excel-Datum als `TT.MM.JJJJ` ausgegeben; Teilangaben wie `04/2027` bleiben unverändert.
+* Die Datumsverbesserung gilt auch für die normale Tabellenanzeige im Programm, nicht nur für den Dokumentationstext.
+
+## Dokumentationstext Ausgabe
+
+Bei einer Medikamentenausgabe werden nicht mehr angehängt:
+
+* Lieferdatum / Wareneingangsdatum,
+* Ausgabedatum (steht bereits im Einleitungssatz),
+* Patient-ID (steht bereits im Einleitungssatz),
+* Rückgabedatum,
+* Rückgabemengen / Restmengen,
+* Vernichtungsdaten,
+* IMP-/Produktspalte, sofern vorhanden (steht bereits als Medikament im Einleitungssatz).
+
+Enthalten bleiben die für die ausgegebene Packung relevanten DrugInventory-Felder, z. B. Charge, Box-/Kit-/Vial-Kennung, Haltbarkeit und befüllte allgemeine Zusatzfelder.
+
+## Dokumentationstext Rückgabe
+
+Bei einer Rückgabe werden ebenfalls Liefer-, Ausgabe- und Vernichtungsdaten nicht doppelt bzw. nicht fachlich unpassend ausgegeben. Rückgabespezifische Angaben wie `Anzahl übrig gebliebener Tabletten`, `unused` oder `remaining` werden dagegen nur bei der Rückgabe berücksichtigt.
+
+## GUI Berichte
+
+* `Drug Accountability` und `Dokumentationstext für Ausgabe / Rückgabe` sind jetzt zwei getrennte visuelle Cards/GroupBoxen.
+* Mehrere lange Erklärungstexte wurden entfernt oder verkürzt.
+* Die Quellwert-Vorschau zeigt nur die Felder, die für den aktuell gewählten Vorgang tatsächlich in den Text übernommen werden.
+
+
+
+# 
+
+# v8.17 – DrugInventory-getreue Medikationsdokumentation
+
+## Produktversion
+
+* Produktversion auf **1.8.17** erhöht.
+* GUI-Fußzeile, AuditLog, Windows-Versionsressource und Inno-Setup verwenden denselben Stand.
+
+## Dokumentationstext für Ausgabe / Rückgabe
+
+* Der Dokumentationsgenerator wurde grundlegend korrigiert.
+* Fachliche Detailwerte werden nicht mehr über separat editierbare GUI-Felder gespiegelt.
+* **Nur Einnahmebeginn bzw. letzte Einnahme bleibt manuell editierbar.**
+* Alle übrigen Angaben stammen unmittelbar aus dem ausgewählten `DrugInventory`-Datensatz bzw. der Excel-basierten IMP-Bezeichnung.
+* Jede befüllte DrugInventory-Spalte wird automatisch berücksichtigt.
+* Die Spaltenbezeichnung wird **1:1 aus dem Excel-Header** übernommen. Dadurch entstehen je nach Studie beispielsweise `Charge No.`, `Vial No.`, `Box-Nr.`, `Kit-No.`, `Comment`, `Zurückgegeben am`, `Anzahl übrig ...` usw.
+* Leere DrugInventory-Spalten werden nicht künstlich ausgegeben.
+* Verfallsdaten werden als `MM/JJJJ`, andere Datumsfelder als `TT.MM.JJJJ` formatiert.
+* Das Ausgabe-/Rückgabedatum wird nicht mehr ersatzweise auf das heutige Datum gesetzt. Fehlt es in Excel, wird dies sichtbar als `\\\[in DrugInventory nicht befüllt]` gekennzeichnet.
+* Der generierte Text ist read-only; Änderungen erfolgen bewusst nur über die Excel-Quelldaten bzw. das eine manuelle Einnahmedatum.
+
+## Beispiel
+
+```text
+Studienpatient 02-01 hat am 06.05.2026 1 Packung(en) der Studienmedikation (UVADEX) erhalten. | Einnahmebeginn am: \\\[bitte ergänzen] | DeliveryDate: 17.03.2026 | Charge No.: AV8738 | Vial No.: B1 - #1 | Expiry-Date: 04/2027 | DispensingDate: 06.05.2026 | Pat.ID: 02-01
+```
+
+
+
+
+
+
+
+# v8.16 – konfigurierbares AuditLog und Dokumentationstext-Generator
+
+## Produktversion
+
+* Zentrale Produktversion auf **1.8.16** gesetzt.
+* `AppVersion.h`, Inno-Setup und Windows-Versionsressource der EXE verwenden denselben Versionsstand.
+* Die Version bleibt klein in der Navigations-Fußzeile sichtbar und wird in jeden Audit-Eintrag geschrieben.
+
+## AuditLog
+
+* Der AuditLog-Speicherort ist jetzt unter **Einstellungen → AuditLog** frei konfigurierbar.
+* Standard bleibt `%LOCALAPPDATA%\\\\Medikationsverwaltung\\\\Audit`; dieser Pfad benötigt im Normalfall keine Administratorrechte.
+* Alternativ kann ein lokaler IT-Ordner oder ein freigegebener Netzwerkpfad verwendet werden.
+* Vor dem Speichern eines neuen Audit-Pfads führt die Anwendung einen realen Schreibtest durch.
+* Ist der gewählte Pfad nicht beschreibbar, wird die Einstellung nicht übernommen und der bisherige Audit-Pfad bleibt aktiv.
+* Der AuditTrail bleibt nicht abschaltbar.
+* Die monatlichen Dateinamen enthalten weiterhin den Computernamen. Verwenden mehrere PCs denselben zentralen Audit-Ordner, entstehen dadurch getrennte Audit-Dateien pro PC.
+
+## Berichte / Dokumentationshilfe
+
+* Im studienbezogenen Reiter **Berichte** gibt es neu die Karte **„Dokumentationstext für Ausgabe / Rückgabe“**.
+* Ein Inventardatensatz kann ausgewählt werden; soweit vorhanden werden automatisch übernommen:
+
+  * Pat.ID
+  * Chargennummer
+  * Medikations-/Box-/Kit-Nummer
+  * Verfallsdatum
+  * Ausgabedatum bzw. Rückgabedatum
+  * Anzahl übrig gebliebener Einheiten
+  * optional Darreichungsform, Packungsinhalt und Dosisstärke
+* Fehlende Angaben können direkt ergänzt werden.
+* Für Ausgabe und Rückgabe werden getrennte Textvorlagen erzeugt.
+* Der erzeugte Text bleibt editierbar und kann per Button in die Zwischenablage kopiert werden.
+* Fehlende Informationen werden sichtbar als `\\\[bitte ergänzen]` markiert; es werden keine medizinischen oder fachlichen Werte erfunden.
+* Der Generator schreibt nichts zurück in die Studien-Excel und überträgt nichts automatisch an EDC, CTMS oder Patientenakte.
+
+## Studienprofil
+
+Optional werden jetzt zusätzlich folgende Profilfelder erkannt:
+
+* `Packungsinhalt` / `Packungsgröße` / `Package Content` / `Pack Size`
+* `Dosisstärke` / `Dosierungsstärke` / `Strength` / `Dose Strength`
+* `Arzneiform` zusätzlich zu `Applikationsform` / `Darreichungsform`
+
+Diese Angaben dienen insbesondere der Vorbelegung des Dokumentationstext-Generators.
+
+## Neue Dateien
+
+* `MedicationDocumentation.h`
+* `MedicationDocumentation.cpp`
+
+Die reine Textgenerierung ist damit von der GUI getrennt und kann später unabhängig getestet werden.
+
+
+
 
 
 # \[v8.15] – AuditLog und Versionsanzeige
@@ -15,7 +140,7 @@ Einige Funktionen wurden in späteren Versionen erneut angepasst oder ersetzt. I
 
 * Neue zentrale Komponenten `AuditLogger.h` und `AuditLogger.cpp`.
 * Fachliche Änderungen werden automatisch in einer lokalen monatlichen CSV-Datei protokolliert.
-* Speicherort: `%LOCALAPPDATA%\\\\\\\\Medikationsverwaltung\\\\\\\\Audit`.
+* Speicherort: `%LOCALAPPDATA%\\\\\\\\\\\\\\\\Medikationsverwaltung\\\\\\\\\\\\\\\\Audit`.
 * Der Rechnername ist Bestandteil des Dateinamens.
 * Jeder Eintrag enthält u. a. UTC-Zeitstempel, Vorgangs-ID, Windows-Benutzer, Computer, Programmversion, Studie, EUCT-No., IMP, Blatt, Excel-Zeile sowie alten und neuen Wert.
 * Das AuditLog kann in der GUI nicht deaktiviert werden.
@@ -40,32 +165,11 @@ Die lokale CSV-Lösung verbessert die Nachvollziehbarkeit erheblich, ist jedoch 
 
 
 
-# Medikationsverwaltung v8.14
 
-## Lesbarkeit / Schriftgrößen
 
-Die Schriftgrößen wurden bewusst nur moderat erhöht, damit die Anwendung auf
-kleineren Displays besser lesbar ist, ohne das responsive Layout erneut zu
-verändern.
 
-### Geändert
 
-- Tabelleninhalt: `12 -> 13`
-- Tabellenkopf: explizit `13`, zusätzlich `SemiBold`
-- Kleine Sekundär- und Hinweistexte: `11 -> 12`
-- Formularbeschriftungen: `12 -> 13`
-- Tabellenzellen erhalten wegen der größeren Schrift minimal mehr vertikales Padding.
-- Die Höhe der Tabellenkopfzeile wurde geringfügig angepasst.
 
-### Unverändert
-
-- Hauptüberschriften und größere Titel bleiben unverändert.
-- Responsive Fensterlogik aus v8.12 bleibt erhalten.
-- Card-Table-Optik aus v8.13 bleibt erhalten.
-- Tabellenbreiten, Mindestbreiten und horizontales Scrollen bleiben unverändert.
-- Fixierte Tabellenköpfe bleiben erhalten.
-- Tabellenhöhe von ca. 510 px bleibt erhalten.
-- Filter, Sortierung, Auswahl und gespeicherte Scrollpositionen bleiben erhalten.
 
 
 
@@ -108,48 +212,6 @@ Weitere Metadaten werden in dieser kompakten Übersicht nicht mehr angehängt.
 
 
 
-# v8.12 – Responsive Oberfläche für kleinere Displays
-
-## Fenstergröße
-- Die Anwendung startet nicht mehr fest mit 1500 × 900 Pixeln.
-- Die Startgröße orientiert sich an ca. 980 × 680 logischen Pixeln und damit an einem kompakten Querformat.
-- Bei kleineren Displays wird die Startgröße automatisch auf maximal rund 90 % des verfügbaren Arbeitsbereichs begrenzt.
-- Das Fenster kann weiterhin frei vergrößert und maximiert werden.
-- Die Schriftgröße wird nicht dynamisch verkleinert oder vergrößert.
-
-## Navigation
-- Die linke Navigation verwendet jetzt den adaptiven `NavigationViewPaneDisplayMode::Auto`.
-- Auf großen Fenstern ist die Navigation vollständig geöffnet.
-- Bei mittleren Breiten wechselt sie in die kompakte Darstellung.
-- Auf kleinen Fenstern wird sie als Overlay/Hamburger-Menü dargestellt, damit mehr Breite für den Arbeitsbereich bleibt.
-
-## Responsive Arbeitsbereiche
-- Die drei Arbeitskarten in Bestellungen, Wareneingang/Bestand und Patientenvisiten werden abhängig von der verfügbaren Breite angeordnet:
-  - groß: 3 Spalten,
-  - mittel: 2 Spalten,
-  - klein: 1 Spalte.
-- Die Karten werden nicht skaliert; nur ihre Position im Layout ändert sich.
-- Die beiden Karten in der Studienübersicht wechseln auf kleinen Fenstern von zwei Spalten auf eine vertikale Anordnung.
-
-## Studienauswahl
-- Studienauswahl und Schnellaktionen reagieren auf die verfügbare Breite.
-- Auf breiten Fenstern stehen Aktionen rechts neben der Studienauswahl.
-- Auf schmaleren Fenstern wechseln die Aktionen in eine zweite Zeile.
-- Die Aktionsleiste kann bei sehr kleinen Breiten horizontal scrollen, anstatt Buttons oder Texte zusammenzudrücken.
-
-## Tabellen
-- Das bestehende Tabellenprinzip bleibt erhalten:
-  - sinnvolle Mindestbreiten pro Spalte,
-  - keine Skalierung der Tabellen-Schrift,
-  - horizontales Scrollen, sobald die Mindestbreiten nicht mehr in das Fenster passen,
-  - fixierte Spaltenüberschrift,
-  - gespeicherte Scrollposition.
-- Die Tabellenhöhe bleibt auf dem größeren Stand aus v8.9.
-
-## Ziel
-Die Oberfläche soll auf kleinen Notebooks und unterschiedlichen Windows-Skalierungsfaktoren stabil lesbar bleiben. Statt alle Elemente proportional zu verkleinern, werden Bereiche umgebrochen und Tabellen bei Bedarf gescrollt.
-
-
 
 
 
@@ -159,8 +221,8 @@ Die Oberfläche soll auf kleinen Notebooks und unterschiedlichen Windows-Skalier
 ### Geändert
 
 * Das App-Icon ist nicht mehr von einer zur Laufzeit kopierten `.ico`-Datei abhängig.
-* `Medikationsverwaltung\\\\\\\_AppIcon.ico` wird über `AppIcon.rc` direkt in die ausführbare Datei eingebettet.
-* Das Fenster erhält das Icon zusätzlich über `WM\\\\\\\_SETICON` für große und kleine Darstellung.
+* `Medikationsverwaltung\\\\\\\\\\\\\\\_AppIcon.ico` wird über `AppIcon.rc` direkt in die ausführbare Datei eingebettet.
+* Das Fenster erhält das Icon zusätzlich über `WM\\\\\\\\\\\\\\\_SETICON` für große und kleine Darstellung.
 
 ### Ergebnis
 
@@ -239,7 +301,7 @@ Die Oberfläche soll auf kleinen Notebooks und unterschiedlichen Windows-Skalier
 
 ### Behoben
 
-* Datumswerte werden beim Schreiben an Excel als echter COM-Datentyp `VT\\\\\\\_DATE` über `Range.Value` übergeben.
+* Datumswerte werden beim Schreiben an Excel als echter COM-Datentyp `VT\\\\\\\\\\\\\\\_DATE` über `Range.Value` übergeben.
 * Dadurch werden fehlerhafte kleine Zahlenwerte in Datumsfeldern vermieden.
 * Die lokale Datumsdarstellung bleibt:
 
@@ -260,7 +322,7 @@ Die Oberfläche soll auf kleinen Notebooks und unterschiedlichen Windows-Skalier
 * Datenzeilen erhielten etwas weniger vertikales Padding.
 * Die Schriftgröße der Tabelleninhalte blieb unverändert.
 
-> \\\\\\\*\\\\\\\*Später geändert:\\\\\\\*\\\\\\\* Die reduzierte Tabellenhöhe wurde in v8.9 wieder zurückgenommen.
+> \\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\*Später geändert:\\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\* Die reduzierte Tabellenhöhe wurde in v8.9 wieder zurückgenommen.
 
 \---
 
@@ -460,8 +522,8 @@ Zusätzliche unterstützte Bezeichnungen:
 * Die PDF-Erstellung für DrugAccount wurde vollständig aus dem Workflow entfernt.
 * Es gibt zwei getrennte Excel-Berichtstypen:
 
-  * `DrugAccount\\\\\\\_Gesamt.xlsx` – alle Datensätze eines IMP
-  * `DrugAccount\\\\\\\_Patient.xlsx` – ein IMP und ein ausgewählter Patient
+  * `DrugAccount\\\\\\\\\\\\\\\_Gesamt.xlsx` – alle Datensätze eines IMP
+  * `DrugAccount\\\\\\\\\\\\\\\_Patient.xlsx` – ein IMP und ein ausgewählter Patient
 * Jeder Bericht wird unmittelbar vor dem Export aus dem aktuellen `DrugInventory` neu erzeugt.
 * Die erzeugte Excel-Datei wird nach dem Export direkt geöffnet.
 
@@ -521,12 +583,12 @@ Der Patientenbericht enthält zusätzlich:
 
 Globale Standardvorlagen:
 
-* `Templates\\\\\\\\DrugAccount\\\\\\\_Gesamt.xlsx`
-* `Templates\\\\\\\\DrugAccount\\\\\\\_Patient.xlsx`
+* `Templates\\\\\\\\\\\\\\\\DrugAccount\\\\\\\\\\\\\\\_Gesamt.xlsx`
+* `Templates\\\\\\\\\\\\\\\\DrugAccount\\\\\\\\\\\\\\\_Patient.xlsx`
 
 Studienspezifische Overrides können unter folgendem Pfad mit identischen Dateinamen abgelegt werden:
 
-* `Documents\\\\\\\\DrugAccount`
+* `Documents\\\\\\\\\\\\\\\\DrugAccount`
 
 \---
 
@@ -570,10 +632,10 @@ Der Patientenbericht wurde auf ein verbindliches Schema mit elf Spalten umgestel
 
 ### Vorlage
 
-* `Templates/Bericht\\\\\\\_DrugAccount.xlsx` wurde auf das damalige Patientenberichtsschema aktualisiert.
+* `Templates/Bericht\\\\\\\\\\\\\\\_DrugAccount.xlsx` wurde auf das damalige Patientenberichtsschema aktualisiert.
 * `Tabelle1` für den Gesamtbericht blieb unverändert.
 
-> \\\\\\\*\\\\\\\*Später geändert:\\\\\\\*\\\\\\\* In v8.2 wurde der PDF-Workflow vollständig entfernt und die Berichtserzeugung auf zwei getrennte Excel-Vorlagen umgestellt.
+> \\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\*Später geändert:\\\\\\\\\\\\\\\*\\\\\\\\\\\\\\\* In v8.2 wurde der PDF-Workflow vollständig entfernt und die Berichtserzeugung auf zwei getrennte Excel-Vorlagen umgestellt.
 
 \---
 
@@ -640,7 +702,7 @@ Drei Arbeitsbereiche stehen nebeneinander:
 * Der Button **„Vorlage für erstes Tabellenblatt öffnen“** wurde aus den Einstellungen entfernt.
 * Die studienübergreifende CSV-Übersicht wird unter folgendem Pfad gespeichert:
 
-  * `<Studien-Datenordner>\\\\\\\\Exporte`
+  * `<Studien-Datenordner>\\\\\\\\\\\\\\\\Exporte`
 
 \---
 
@@ -652,7 +714,7 @@ Drei Arbeitsbereiche stehen nebeneinander:
 |**v8.10**|Absturz bei gemeinsamer Box-/Kit-Kennzeichnung behoben|
 |**v8.9**|Tabellenbreiten und Scrollpositionen stabilisiert|
 |**v8.8**|Responsive Tabellenbreite|
-|**v8.7**|`VT\\\\\\\_DATE`, fixe Tabellenköpfe|
+|**v8.7**|`VT\\\\\\\\\\\\\\\_DATE`, fixe Tabellenköpfe|
 |**v8.6**|Performanceoptimierung und robuste Mehrzeileneingabe|
 |**v8.5**|Offene Bestellungen eindeutig über `Erhalten am`|
 |**v8.4**|Batch-Wareneingang und freie Box-/Kit-IDs|
