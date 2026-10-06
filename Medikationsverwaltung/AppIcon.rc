@@ -1,4 +1,4 @@
-#include "resource.h"
+﻿#include "resource.h"
 #include <winver.h>
 
 IDI_APP_ICON ICON "Assets\\Medikationsverwaltung_AppIcon.ico"
@@ -6,8 +6,8 @@ IDI_APP_ICON ICON "Assets\\Medikationsverwaltung_AppIcon.ico"
 // Windows-Dateieigenschaften der EXE. Die sichtbare Produktversion wird
 // zusätzlich zentral in AppVersion.h und im Inno-Setup-Skript gepflegt.
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,8,18,0
- PRODUCTVERSION 1,8,18,0
+ FILEVERSION 1,8,19,0
+ PRODUCTVERSION 1,8,19,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -24,11 +24,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Medikationsverwaltung\0"
             VALUE "FileDescription", "Medikationsverwaltung für klinische Studien\0"
-            VALUE "FileVersion", "1.8.18.0\0"
+            VALUE "FileVersion", "1.8.19.0\0"
             VALUE "InternalName", "Medikationsverwaltung.exe\0"
             VALUE "OriginalFilename", "Medikationsverwaltung.exe\0"
             VALUE "ProductName", "Medikationsverwaltung\0"
-            VALUE "ProductVersion", "1.8.18\0"
+            VALUE "ProductVersion", "1.8.19\0"
         END
     END
     BLOCK "VarFileInfo"

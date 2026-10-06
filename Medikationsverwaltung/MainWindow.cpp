@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "MainWindow.h"
 #include "resource.h"
 
@@ -460,19 +460,45 @@ namespace med
         versionFooter.Margin(Thickness{ 12,6,0,10 });
         m_navigation.PaneFooter(versionFooter);
 
-        auto add = [&](const std::wstring& title, const std::wstring& tag)
+        // In der kompakten Navigation ist für die Versionszeile kein sinnvoller
+        // Platz vorhanden. Statt "Version 1..." abgeschnitten darzustellen,
+        // wird sie dort vollständig ausgeblendet und nur im geöffneten Pane gezeigt.
+        auto updateFooterVisibility = [this, versionFooter]()
+        {
+            versionFooter.Visibility(
+                m_navigation.IsPaneOpen() ? Visibility::Visible : Visibility::Collapsed);
+        };
+        m_navigation.PaneOpened([updateFooterVisibility](auto const&, auto const&)
+        {
+            updateFooterVisibility();
+        });
+        m_navigation.PaneClosed([updateFooterVisibility](auto const&, auto const&)
+        {
+            updateFooterVisibility();
+        });
+        updateFooterVisibility();
+
+        auto add = [&](const std::wstring& title, const std::wstring& tag, Symbol symbol)
         {
             NavigationViewItem item;
             item.Content(box_value(title));
             item.Tag(box_value(tag));
+
+            // Im kompakten NavigationView zeigt WinUI nur das Icon. Dadurch wird
+            // kein abgeschnittener Text wie "Übers..." mehr dargestellt.
+            SymbolIcon icon;
+            icon.Symbol(symbol);
+            item.Icon(icon);
+            ToolTipService::SetToolTip(item, box_value(title));
+
             m_navigation.MenuItems().Append(item);
             return item;
         };
 
-        auto first = add(L"Übersicht", L"overview");
-        add(L"Berichte", L"reports");
-        add(L"Vorlagen & Dokumente", L"documents");
-        add(L"Einstellungen", L"settings");
+        auto first = add(L"Übersicht", L"overview", Symbol::Home);
+        add(L"Berichte", L"reports", Symbol::Document);
+        add(L"Vorlagen & Dokumente", L"documents", Symbol::Folder);
+        add(L"Einstellungen", L"settings", Symbol::Setting);
         m_navigation.SelectedItem(first);
 
         m_navigation.SelectionChanged([this](NavigationView const&, NavigationViewSelectionChangedEventArgs const& args)
@@ -785,10 +811,101 @@ namespace med
             });
         }
 
+        // Ein gemeinsames Breitenmodell für Kopf UND Datenzeilen.
+        // Die Mindestbreite verhindert unlesbare Spalten auf kleinen Displays.
+        // Die bevorzugte Breite berücksichtigt zusätzlich die tatsächlich sichtbaren
+        // Inhalte. Erst unterhalb der Summe aller Mindestbreiten wird horizontal
+        // gescrollt; oberhalb davon füllt die Tabelle die komplette Fensterbreite.
+        std::vector<double> columnMinimums;
+        std::vector<double> columnPreferred;
+        std::vector<double> columnStretchWeights;
+        columnMinimums.reserve(headers.size());
+        columnPreferred.reserve(headers.size());
+        columnStretchWeights.reserve(headers.size());
+
+        double minimumTotal = 0.0;
+        double preferredTotal = 0.0;
+        double stretchWeightTotal = 0.0;
+
+        for (size_t c = 0; c < headers.size(); ++c)
+        {
+            const auto normalizedHeader = date::Normalize(headers[c]);
+
+            double minimum = 104.0;
+            double preferredCap = 250.0;
+            double stretchWeight = 1.0;
+
+            if (normalizedHeader == L"prio")
+            {
+                minimum = 58.0; preferredCap = 78.0; stretchWeight = 0.35;
+            }
+            else if (normalizedHeader == L"bestand" ||
+                     normalizedHeader == L"minimum" ||
+                     normalizedHeader.find(L"menge") != std::wstring::npos ||
+                     normalizedHeader.find(L"anzahl") != std::wstring::npos ||
+                     normalizedHeader.find(L"lieferzeit") != std::wstring::npos)
+            {
+                minimum = 82.0; preferredCap = 125.0; stretchWeight = 0.65;
+            }
+            else if (normalizedHeader == L"status")
+            {
+                minimum = 108.0; preferredCap = 145.0; stretchWeight = 0.85;
+            }
+            else if (normalizedHeader.find(L"bestellfenster") != std::wstring::npos)
+            {
+                minimum = 178.0; preferredCap = 300.0; stretchWeight = 1.75;
+            }
+            else if (normalizedHeader == L"studie")
+            {
+                minimum = 122.0; preferredCap = 210.0; stretchWeight = 1.15;
+            }
+            else if (normalizedHeader == L"imp" ||
+                     normalizedHeader.find(L"produkt") != std::wstring::npos ||
+                     normalizedHeader.find(L"medikament") != std::wstring::npos)
+            {
+                minimum = 132.0; preferredCap = 250.0; stretchWeight = 1.35;
+            }
+            else if (normalizedHeader.find(L"form") != std::wstring::npos ||
+                     normalizedHeader.find(L"applikation") != std::wstring::npos)
+            {
+                minimum = 122.0; preferredCap = 210.0; stretchWeight = 1.05;
+            }
+            else if (normalizedHeader.find(L"kommentar") != std::wstring::npos ||
+                     normalizedHeader.find(L"beschreibung") != std::wstring::npos ||
+                     normalizedHeader.find(L"bezeichnung") != std::wstring::npos ||
+                     normalizedHeader.find(L"notiz") != std::wstring::npos)
+            {
+                minimum = 150.0; preferredCap = 320.0; stretchWeight = 1.8;
+            }
+            else if (normalizedHeader.find(L"datum") != std::wstring::npos ||
+                     normalizedHeader.find(L"verfall") != std::wstring::npos ||
+                     normalizedHeader.find(L"erwartet") != std::wstring::npos)
+            {
+                minimum = 118.0; preferredCap = 180.0; stretchWeight = 0.95;
+            }
+
+            size_t longest = headers[c].size() + 4; // Platz für Sortier-/Filterindikatoren
+            size_t sampled = 0;
+            for (const auto rowIndex : visible)
+            {
+                if (sampled++ >= std::min<size_t>(maxRows, 80)) break;
+                if (c >= rows[rowIndex].size()) continue;
+                longest = std::max(longest, std::min<size_t>(rows[rowIndex][c].size(), 44));
+            }
+
+            const double contentPreferred = 48.0 + static_cast<double>(longest) * 7.0;
+            const double preferred = std::clamp(contentPreferred, minimum, preferredCap);
+
+            columnMinimums.push_back(minimum);
+            columnPreferred.push_back(preferred);
+            columnStretchWeights.push_back(stretchWeight);
+            minimumTotal += minimum;
+            preferredTotal += preferred;
+            stretchWeightTotal += stretchWeight;
+        }
+
         // Kopf und Datenkörper sind getrennt, damit die Kopfzeile beim vertikalen
-        // Scrollen stehen bleibt. Die Spalten werden zunächst mit Pixelbreiten
-        // angelegt und anschließend aus EINEM gemeinsamen Breitenmodell synchronisiert.
-        // Dadurch können Kopf und Tabelleninhalt nicht mehr gegeneinander verrutschen.
+        // Scrollen stehen bleibt. Beide erhalten dieselben ColumnDefinitions.
         auto addColumns = [&](Grid& grid)
         {
             if (selectable)
@@ -846,7 +963,11 @@ namespace med
             title += L"  ▾";
 
             Button button;
-            button.Content(box_value(title));
+            auto headerText = ui::Text(title, 13.0, true);
+            headerText.TextWrapping(TextWrapping::NoWrap);
+            headerText.TextTrimming(TextTrimming::CharacterEllipsis);
+            button.Content(headerText);
+            ToolTipService::SetToolTip(button, box_value(headers[c]));
             button.HorizontalAlignment(HorizontalAlignment::Stretch);
             button.HorizontalContentAlignment(HorizontalAlignment::Left);
             button.Padding(Thickness{ 8,2,8,2 });
@@ -981,9 +1102,12 @@ namespace med
                 else if (alternateRow)
                     cell.Background(alternateRowBackground);
 
-                auto text = ui::Text(c < rows[rowIndex].size() ? rows[rowIndex][c] : L"", 13.0, false);
+                const std::wstring cellValue = c < rows[rowIndex].size() ? rows[rowIndex][c] : L"";
+                auto text = ui::Text(cellValue, 13.0, false);
                 text.VerticalAlignment(VerticalAlignment::Center);
                 text.TextWrapping(TextWrapping::NoWrap);
+                text.TextTrimming(TextTrimming::CharacterEllipsis);
+                if (!cellValue.empty()) ToolTipService::SetToolTip(text, box_value(cellValue));
                 cell.Child(text);
                 Grid::SetRow(cell, gridRow);
                 Grid::SetColumn(cell, static_cast<int>(c + (selectable ? 1 : 0)));
@@ -1095,36 +1219,18 @@ namespace med
         // Kopf und Datenkörper erhalten bei jeder Fensterbreite EXAKT die gleichen
         // Pixelbreiten. Die Tabelle füllt dabei weiterhin die verfügbare Breite aus.
         horizontalScroll.SizeChanged(
-            [headerGrid, bodyGrid, headerSurface, bodySurface, tableStack, bodyScroll, result, headers, selectable]
+            [headerGrid, bodyGrid, headerSurface, bodySurface, tableStack, bodyScroll, result,
+             columnMinimums, columnPreferred, columnStretchWeights, minimumTotal, preferredTotal,
+             stretchWeightTotal, selectable]
             (auto const&, SizeChangedEventArgs const& args)
             {
                 const double viewport = std::max(320.0, static_cast<double>(args.NewSize().Width));
                 const double selectorWidth = selectable ? 34.0 : 0.0;
+                // Reserve für die vertikale Scrollbar des Datenkörpers. Dadurch bleiben
+                // die rechten Kanten von Kopf und Zeilen auch bei Scrollbar exakt bündig.
                 constexpr double scrollbarGutter = 17.0;
 
-                std::vector<double> minimums;
-                std::vector<double> weights;
-                minimums.reserve(headers.size());
-                weights.reserve(headers.size());
-
-                double minimumTotal = 0.0;
-                double weightTotal = 0.0;
-                for (const auto& rawHeader : headers)
-                {
-                    const auto header = date::Trim(rawHeader);
-                    const double length = static_cast<double>(header.size());
-                    const double minimum = std::clamp(88.0 + length * 2.1, 96.0, 176.0);
-                    const double weight = std::clamp(0.9 + length / 18.0, 1.0, 1.9);
-                    minimums.push_back(minimum);
-                    weights.push_back(weight);
-                    minimumTotal += minimum;
-                    weightTotal += weight;
-                }
-
-                const double usable = std::max(
-                    minimumTotal,
-                    viewport - selectorWidth - scrollbarGutter);
-                const double extra = std::max(0.0, usable - minimumTotal);
+                const double availableDataWidth = std::max(0.0, viewport - selectorWidth - scrollbarGutter);
 
                 if (selectable)
                 {
@@ -1134,11 +1240,30 @@ namespace med
                         GridLength{ selectorWidth, GridUnitType::Pixel });
                 }
 
-                double dataTotal = 0.0;
-                for (size_t c = 0; c < headers.size(); ++c)
+                double interpolation = 0.0;
+                double extra = 0.0;
+                if (availableDataWidth > minimumTotal && preferredTotal > minimumTotal)
                 {
-                    const double width = minimums[c] +
-                        (weightTotal > 0.0 ? extra * (weights[c] / weightTotal) : 0.0);
+                    interpolation = std::clamp(
+                        (availableDataWidth - minimumTotal) / (preferredTotal - minimumTotal),
+                        0.0, 1.0);
+                }
+                if (availableDataWidth > preferredTotal)
+                    extra = availableDataWidth - preferredTotal;
+
+                double dataTotal = 0.0;
+                for (size_t c = 0; c < columnMinimums.size(); ++c)
+                {
+                    double width = columnMinimums[c];
+
+                    if (availableDataWidth >= minimumTotal)
+                    {
+                        width += (columnPreferred[c] - columnMinimums[c]) * interpolation;
+
+                        if (extra > 0.0 && stretchWeightTotal > 0.0)
+                            width += extra * (columnStretchWeights[c] / stretchWeightTotal);
+                    }
+
                     const unsigned int index = static_cast<unsigned int>(
                         c + (selectable ? 1 : 0));
 
@@ -1153,6 +1278,9 @@ namespace med
                 headerGrid.Width(exactGridWidth);
                 bodyGrid.Width(exactGridWidth);
 
+                // Bei genügend Platz entspricht die Tabellenbreite exakt dem Viewport.
+                // Erst wenn die Mindestbreiten nicht mehr hineinpassen, wird die Tabelle
+                // breiter als der Viewport und der äußere ScrollViewer übernimmt.
                 const double tableWidth = exactGridWidth + scrollbarGutter;
                 headerSurface.Width(tableWidth);
                 bodySurface.Width(tableWidth);

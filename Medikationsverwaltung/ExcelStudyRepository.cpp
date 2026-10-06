@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "ExcelStudyRepository.h"
 
 #include "DateUtils.h"
@@ -166,6 +166,49 @@ namespace
     bool AnyNonEmpty(const std::vector<med::CellValue>& row)
     {
         return std::any_of(row.begin(), row.end(), [](const med::CellValue& c) { return !c.IsEmpty(); });
+    }
+
+    // Excel-Vorlagen enthalten teilweise Beispiel-/Platzhalterwerte in den
+    // vorgesehenen IMP-Feldern. Solche Werte dürfen nicht als echte Medikamente
+    // in Auswahlfeldern, Zählern oder der studienübergreifenden Übersicht landen.
+    bool IsUsableImpName(const std::wstring& value)
+    {
+        const auto trimmed = med::date::Trim(value);
+        if (trimmed.empty()) return false;
+
+        const auto normalized = med::date::Normalize(trimmed);
+        if (normalized.empty()) return false;
+
+        // Typische leere/technische Platzhalter.
+        if (normalized == L"0" ||
+            normalized == L"na" ||
+            normalized == L"nva" ||
+            normalized == L"none" ||
+            normalized == L"null" ||
+            normalized == L"keinimp" ||
+            normalized == L"keinemedikation")
+            return false;
+
+        // Texte aus der mitgelieferten Excel-Vorlage bzw. ähnlich formulierte
+        // Eingabehinweise. Die Prüfung ist bewusst eng, damit echte Produktnamen
+        // nicht versehentlich ausgefiltert werden.
+        const std::vector<std::wstring> placeholderFragments
+        {
+            L"namenderprüfmedikation",
+            L"namederprüfmedikation",
+            L"prüfmedikationeintragen",
+            L"pruefmedikationeintragen",
+            L"medikationeintragen",
+            L"medikamenteintragen",
+            L"impbezeichnungeintragen"
+        };
+
+        for (const auto& fragment : placeholderFragments)
+        {
+            if (normalized.find(fragment) != std::wstring::npos) return false;
+        }
+
+        return true;
     }
 
     std::wstring ReadRowText(const med::SheetTable& table, const std::vector<med::CellValue>& row,
@@ -781,8 +824,8 @@ namespace med
                 if (!AnyNonEmpty(row)) continue;
                 ImpData imp = profileIndex < stockImps.size() ? stockImps[profileIndex] : ImpData{};
                 const auto profileName = ReadRowText(study.profileTable, row, { L"IMP-Name", L"IMP Name", L"Medikament", L"Prüfpräparat" });
-                if (!profileName.empty()) imp.name = profileName;
-                if (imp.name.empty()) { ++profileIndex; continue; }
+                if (IsUsableImpName(profileName)) imp.name = profileName;
+                if (!IsUsableImpName(imp.name)) { ++profileIndex; continue; }
                 imp.id = ReadRowText(study.profileTable, row, { L"IMP-ID", L"IMP ID" }, imp.id.empty() ? imp.name : imp.id);
                 imp.goodsType = ReadRowText(study.profileTable, row, { L"Warenart", L"Typ" }, imp.goodsType.empty() ? L"Studienware" : imp.goodsType);
                 imp.applicationForm = ReadRowText(study.profileTable, row, { L"Applikationsform", L"Darreichungsform", L"Arzneiform" }, imp.applicationForm);
@@ -817,8 +860,8 @@ namespace med
             {
                 ImpData imp = (c - 1) < stockImps.size() ? stockImps[c - 1] : ImpData{};
                 const auto configuredName = ProfileText(study.profileTable, { L"IMP Bezeichnung", L"IMP-Name", L"Medikament" }, c);
-                if (!configuredName.empty()) imp.name = configuredName;
-                if (imp.name.empty()) continue; // leere IMP3..IMP6-Spalten nicht als Phantom-IMP anlegen
+                if (IsUsableImpName(configuredName)) imp.name = configuredName;
+                if (!IsUsableImpName(imp.name)) continue; // leere/Platzhalter-IMPs nicht als Phantom-IMP anlegen
 
                 imp.id = date::Trim(study.profileTable.headers[c]);
                 if (imp.id.empty()) imp.id = imp.name;
@@ -849,6 +892,8 @@ namespace med
         // Meldebestand ergänzen, die noch nicht in der Profilauflösung vorkommen.
         for (const auto& base : stockImps)
         {
+            if (!IsUsableImpName(base.name)) continue;
+
             const auto exists = std::any_of(study.imps.begin(), study.imps.end(), [&](const ImpData& current)
             {
                 return NameScore(current.name, base.name) >= 7000;
@@ -856,12 +901,39 @@ namespace med
             if (!exists) study.imps.push_back(base);
         }
 
+        // Letzte Schutzschicht: Auch bei ungewöhnlichen Altdateien oder gemischten
+        // Profil-/Meldebestand-Konstellationen sollen Vorlagenwerte nie als IMP
+        // weitergereicht werden. Gleichzeitig werden gleichnamige Dubletten entfernt.
+        study.imps.erase(
+            std::remove_if(study.imps.begin(), study.imps.end(), [](const ImpData& imp)
+            {
+                return !IsUsableImpName(imp.name);
+            }),
+            study.imps.end());
+
+        std::vector<ImpData> uniqueImps;
+        uniqueImps.reserve(study.imps.size());
+        for (auto& imp : study.imps)
+        {
+            const auto normalizedName = date::Normalize(imp.name);
+            const auto normalizedId = date::Normalize(imp.id);
+            const bool duplicate = std::any_of(uniqueImps.begin(), uniqueImps.end(), [&](const ImpData& existing)
+            {
+                if (!normalizedId.empty() && normalizedId == date::Normalize(existing.id)) return true;
+                return !normalizedName.empty() && normalizedName == date::Normalize(existing.name);
+            });
+            if (!duplicate) uniqueImps.push_back(std::move(imp));
+        }
+        study.imps = std::move(uniqueImps);
+
         if (study.imps.empty())
         {
             if (study.stockTable.headers.empty())
                 throw std::runtime_error("Weder ein lesbares Studienprofil noch ein lesbarer Meldebestand mit IMP-Daten wurde gefunden.");
             ImpData imp;
-            imp.name = study.config.medicationOverride.empty() ? L"IMP1" : study.config.medicationOverride;
+            imp.name = IsUsableImpName(study.config.medicationOverride)
+                ? study.config.medicationOverride
+                : L"IMP1";
             imp.id = imp.name;
             imp.goodsType = L"Studienware";
             imp.orderRequired = true;
